@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+
+{% block title %}{{ challenge.name }} - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Breadcrumb -->
+    <div class="text-sm breadcrumbs">
+        <ul>
+            <li><a href="{{ url_for('dashboard.index') }}">Dashboard</a></li>
+            <li><a href="{{ url_for('challenges.list_challenges') }}">Challenges</a></li>
+            <li>{{ challenge.name }}</li>
+        </ul>
+    </div>
+
+    <!-- Challenge Header -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold">{{ challenge.name }}</h1>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                        <span class="badge badge-outline">{{ challenge.category }}</span>
+                        {% if challenge.difficulty == 'Easy' %}
+                        <span class="badge badge-success">{{ challenge.difficulty }}</span>
+                        {% elif challenge.difficulty == 'Medium' %}
+                        <span class="badge badge-warning">{{ challenge.difficulty }}</span>
+                        {% elif challenge.difficulty == 'Hard' %}
+                        <span class="badge badge-error">{{ challenge.difficulty }}</span>
+                        {% else %}
+                        <span class="badge">{{ challenge.difficulty or 'N/A' }}</span>
+                        {% endif %}
+                        <span class="badge badge-primary">{{ challenge.points or 100 }} pts</span>
+                        {% if challenge.status == 'accepted' %}
+                        <span class="badge badge-success">Accepted</span>
+                        {% elif challenge.status == 'pending' %}
+                        <span class="badge badge-warning">Pending</span>
+                        {% elif challenge.status == 'declined' %}
+                        <span class="badge badge-error">Declined</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap gap-2">
+                    {% if challenge.status == 'pending' %}
+                    <button onclick="approveChallenge({{ challenge.id }})" class="btn btn-success">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Approve & Merge PR
+                    </button>
+                    <button onclick="showRequestChangesModal()" class="btn btn-warning">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Request Changes
+                    </button>
+                    <button onclick="declineChallenge({{ challenge.id }})" class="btn btn-error">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Decline
+                    </button>
+                    {% endif %}
+                    
+                    {% if challenge.status == 'accepted' and not challenge.pushed_to_ctfd %}
+                    <button onclick="pushToCTFd({{ challenge.id }})" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Push to CTFd
+                    </button>
+                    {% elif challenge.pushed_to_ctfd %}
+                    <span class="btn btn-ghost btn-disabled">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Pushed to CTFd
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Challenge Details Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Description -->
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">Description</h2>
+                    <p class="whitespace-pre-wrap">{{ challenge.description or 'No description available.' }}</p>
+                </div>
+            </div>
+
+            <!-- README Content -->
+            {% if readme_content %}
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">README.md</h2>
+                    <div class="prose prose-sm max-w-none">
+                        <pre class="bg-base-200 p-4 rounded-lg overflow-x-auto text-sm">{{ readme_content }}</pre>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- challenge.yml Content -->
+            {% if challenge_yml %}
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">challenge.yml</h2>
+                    <div class="overflow-x-auto">
+                        <table class="table table-zebra">
+                            <tbody>
+                                {% for key, value in challenge_yml.items() recursive %}
+                                {% if value is mapping %}
+                                <tr>
+                                    <th colspan="2" class="bg-base-200">{{ key }}</th>
+                                </tr>
+                                {{ loop(value.items()) }}
+                                {% else %}
+                                <tr>
+                                    <th class="w-1/3">{{ key }}</th>
+                                    <td>{{ value }}</td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Challenge Info -->
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">Details</h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">Setter</span>
+                            <span class="font-medium">{{ challenge.setter or 'Unknown' }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">Points</span>
+                            <span class="font-medium">{{ challenge.points or 100 }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">PR Number</span>
+                            <span class="font-medium">
+                                {% if challenge.pr_number %}
+                                <span class="badge badge-info">#{{ challenge.pr_number }}</span>
+                                {% else %}
+                                N/A
+                                {% endif %}
+                            </span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">Branch</span>
+                            <span class="font-medium">{{ challenge.branch or 'N/A' }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">CTFd ID</span>
+                            <span class="font-medium">{{ challenge.ctfd_id or 'Not pushed' }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flag (if admin) -->
+            {% if challenge.flag %}
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">Flag</h2>
+                    <div class="mockup-code bg-base-200">
+                        <pre><code>{{ challenge.flag }}</code></pre>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Request Changes Modal -->
+<dialog id="requestChangesModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Request Changes</h3>
+        <p class="py-2 text-base-content/70">Add a comment explaining what changes are needed.</p>
+        <div class="form-control">
+            <textarea id="changesComment" class="textarea textarea-bordered h-32" 
+                      placeholder="Please update the flag format to match our standard..."></textarea>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn btn-ghost">Cancel</button>
+            </form>
+            <button onclick="submitRequestChanges({{ challenge.id }})" class="btn btn-warning">Submit Review</button>
+        </div>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function approveChallenge(id) {
+    if (!confirm('Are you sure you want to approve this challenge and merge the PR?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/challenges/${id}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error approving challenge: ' + error.message);
+    }
+}
+
+async function declineChallenge(id) {
+    if (!confirm('Are you sure you want to decline this challenge and close the PR?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/challenges/${id}/decline`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error declining challenge: ' + error.message);
+    }
+}
+
+function showRequestChangesModal() {
+    document.getElementById('requestChangesModal').showModal();
+}
+
+async function submitRequestChanges(id) {
+    const comment = document.getElementById('changesComment').value;
+    
+    if (!comment.trim()) {
+        alert('Please enter a comment.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/challenges/${id}/request-changes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ comment: comment })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            document.getElementById('requestChangesModal').close();
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error requesting changes: ' + error.message);
+    }
+}
+
+async function pushToCTFd(id) {
+    if (!confirm('Are you sure you want to push this challenge to CTFd?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/challenges/${id}/push-to-ctfd`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error pushing to CTFd: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

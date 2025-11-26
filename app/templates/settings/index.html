@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div>
+        <h1 class="text-3xl font-bold">Settings</h1>
+        <p class="text-base-content/70">Configure your CTF Manager platform</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Site Settings -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Site Settings</h2>
+                <form id="siteSettingsForm" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Site Name</span>
+                        </label>
+                        <input type="text" name="site_name" 
+                               value="{{ settings.get('site_name', 'CTF Challenge Manager') }}"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Event Name</span>
+                        </label>
+                        <input type="text" name="event_name" 
+                               value="{{ settings.get('event_name', 'Science Fest CTF') }}"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Event Date</span>
+                        </label>
+                        <input type="date" name="event_date" 
+                               value="{{ settings.get('event_date', '') }}"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save Settings</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- GitHub Settings -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">GitHub Integration</h2>
+                <form id="githubSettingsForm" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Repository Owner</span>
+                        </label>
+                        <input type="text" name="github_repo_owner" 
+                               value="{{ settings.get('github_repo_owner', '') }}"
+                               placeholder="username or organization"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Repository Name</span>
+                        </label>
+                        <input type="text" name="github_repo_name" 
+                               value="{{ settings.get('github_repo_name', '') }}"
+                               placeholder="repository-name"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">GitHub Token</span>
+                        </label>
+                        <input type="password" name="github_token" 
+                               value="{{ settings.get('github_token', '') }}"
+                               placeholder="ghp_xxxxxxxxxxxx"
+                               class="input input-bordered w-full" />
+                        <label class="label">
+                            <span class="label-text-alt text-warning">Token is stored securely</span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save GitHub Settings</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- CTFd Settings -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">CTFd Integration</h2>
+                <form id="ctfdSettingsForm" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">CTFd URL</span>
+                        </label>
+                        <input type="url" name="ctfd_url" 
+                               value="{{ settings.get('ctfd_url', '') }}"
+                               placeholder="https://your-ctfd.example.com"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">CTFd API Key</span>
+                        </label>
+                        <input type="password" name="ctfd_api_key" 
+                               value="{{ settings.get('ctfd_api_key', '') }}"
+                               placeholder="ctfd_xxxxxxxx"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save CTFd Settings</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Challenge Categories -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Challenge Categories</h2>
+                <form id="categoriesForm" class="space-y-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Categories (comma-separated)</span>
+                        </label>
+                        <input type="text" name="categories" 
+                               value="{{ settings.get('categories', 'Web, Pwn, Rev, Crypto, Forensics, Misc') }}"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Difficulties (comma-separated)</span>
+                        </label>
+                        <input type="text" name="difficulties" 
+                               value="{{ settings.get('difficulties', 'Easy, Medium, Hard') }}"
+                               class="input input-bordered w-full" />
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Save Categories</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Challenge Targets -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex justify-between items-center">
+                <h2 class="card-title">Challenge Targets</h2>
+                <button onclick="showAddTargetModal()" class="btn btn-primary btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Target
+                </button>
+            </div>
+            <p class="text-base-content/70 text-sm mb-4">Set target number of challenges by category and difficulty</p>
+            
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Difficulty</th>
+                            <th>Target</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for target in targets %}
+                        <tr>
+                            <td><span class="badge badge-outline">{{ target.category }}</span></td>
+                            <td>
+                                {% if target.difficulty == 'Easy' %}
+                                <span class="badge badge-success">{{ target.difficulty }}</span>
+                                {% elif target.difficulty == 'Medium' %}
+                                <span class="badge badge-warning">{{ target.difficulty }}</span>
+                                {% elif target.difficulty == 'Hard' %}
+                                <span class="badge badge-error">{{ target.difficulty }}</span>
+                                {% else %}
+                                <span class="badge">{{ target.difficulty }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ target.target_count }}</td>
+                            <td>
+                                <button onclick="deleteTarget({{ target.id }})" class="btn btn-xs btn-error btn-ghost">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-base-content/50">
+                                No targets set. Click "Add Target" to create one.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Target Modal -->
+<dialog id="addTargetModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Add Challenge Target</h3>
+        <form id="addTargetForm" class="space-y-4 mt-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Category</span>
+                </label>
+                <select name="category" class="select select-bordered w-full" required>
+                    <option value="">Select Category</option>
+                    <option value="Web">Web</option>
+                    <option value="Pwn">Pwn</option>
+                    <option value="Rev">Rev</option>
+                    <option value="Crypto">Crypto</option>
+                    <option value="Forensics">Forensics</option>
+                    <option value="Misc">Misc</option>
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Difficulty</span>
+                </label>
+                <select name="difficulty" class="select select-bordered w-full" required>
+                    <option value="">Select Difficulty</option>
+                    <option value="Easy">Easy</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Hard">Hard</option>
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Target Count</span>
+                </label>
+                <input type="number" name="target_count" min="1" value="5" 
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="modal-action">
+                <form method="dialog">
+                    <button class="btn btn-ghost">Cancel</button>
+                </form>
+                <button type="submit" class="btn btn-primary">Add Target</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Site Settings Form
+document.getElementById('siteSettingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveSettings(new FormData(e.target));
+});
+
+// GitHub Settings Form
+document.getElementById('githubSettingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveSettings(new FormData(e.target));
+});
+
+// CTFd Settings Form
+document.getElementById('ctfdSettingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveSettings(new FormData(e.target));
+});
+
+// Categories Form
+document.getElementById('categoriesForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveSettings(new FormData(e.target));
+});
+
+async function saveSettings(formData) {
+    const data = Object.fromEntries(formData);
+    
+    try {
+        const response = await fetch('/settings/update', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Settings saved successfully!');
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error saving settings: ' + error.message);
+    }
+}
+
+function showAddTargetModal() {
+    document.getElementById('addTargetModal').showModal();
+}
+
+document.getElementById('addTargetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    data.target_count = parseInt(data.target_count);
+    
+    try {
+        const response = await fetch('/settings/targets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('addTargetModal').close();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error adding target: ' + error.message);
+    }
+});
+
+async function deleteTarget(id) {
+    if (!confirm('Are you sure you want to delete this target?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/settings/targets/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error deleting target: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

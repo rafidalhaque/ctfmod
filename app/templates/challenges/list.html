@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Challenges - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Challenges</h1>
+            <p class="text-base-content/70">Manage and track all CTF challenges</p>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-lg">Filters</h2>
+            <form method="GET" action="{{ url_for('challenges.list_challenges') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Category</span>
+                    </label>
+                    <select name="category" class="select select-bordered w-full">
+                        <option value="">All Categories</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if current_filters.category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Difficulty</span>
+                    </label>
+                    <select name="difficulty" class="select select-bordered w-full">
+                        <option value="">All Difficulties</option>
+                        {% for diff in difficulties %}
+                        <option value="{{ diff }}" {% if current_filters.difficulty == diff %}selected{% endif %}>{{ diff }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Status</span>
+                    </label>
+                    <select name="status" class="select select-bordered w-full">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if current_filters.status == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="accepted" {% if current_filters.status == 'accepted' %}selected{% endif %}>Accepted</option>
+                        <option value="declined" {% if current_filters.status == 'declined' %}selected{% endif %}>Declined</option>
+                    </select>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Setter</span>
+                    </label>
+                    <select name="setter" class="select select-bordered w-full">
+                        <option value="">All Setters</option>
+                        {% for setter in setters %}
+                        <option value="{{ setter }}" {% if current_filters.setter == setter %}selected{% endif %}>{{ setter }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-control justify-end">
+                    <label class="label">
+                        <span class="label-text">&nbsp;</span>
+                    </label>
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-primary flex-1">Filter</button>
+                        <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-ghost">Clear</a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Challenges Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Difficulty</th>
+                            <th>Points</th>
+                            <th>Setter</th>
+                            <th>Status</th>
+                            <th>PR</th>
+                            <th>CTFd</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for challenge in challenges %}
+                        <tr class="hover">
+                            <td>
+                                <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                   class="link link-hover font-medium">
+                                    {{ challenge.name }}
+                                </a>
+                            </td>
+                            <td><span class="badge badge-outline">{{ challenge.category }}</span></td>
+                            <td>
+                                {% if challenge.difficulty == 'Easy' %}
+                                <span class="badge badge-success">{{ challenge.difficulty }}</span>
+                                {% elif challenge.difficulty == 'Medium' %}
+                                <span class="badge badge-warning">{{ challenge.difficulty }}</span>
+                                {% elif challenge.difficulty == 'Hard' %}
+                                <span class="badge badge-error">{{ challenge.difficulty }}</span>
+                                {% else %}
+                                <span class="badge">{{ challenge.difficulty or 'N/A' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ challenge.points or 100 }}</td>
+                            <td>{{ challenge.setter or 'Unknown' }}</td>
+                            <td>
+                                {% if challenge.status == 'accepted' %}
+                                <span class="badge badge-success">Accepted</span>
+                                {% elif challenge.status == 'pending' %}
+                                <span class="badge badge-warning">Pending</span>
+                                {% elif challenge.status == 'declined' %}
+                                <span class="badge badge-error">Declined</span>
+                                {% else %}
+                                <span class="badge">{{ challenge.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if challenge.pr_number %}
+                                <span class="badge badge-info">#{{ challenge.pr_number }}</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if challenge.pushed_to_ctfd %}
+                                <span class="badge badge-success badge-sm">✓</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex gap-1">
+                                    <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                       class="btn btn-xs btn-ghost">
+                                        View
+                                    </a>
+                                    {% if challenge.status == 'pending' %}
+                                    <button onclick="approveChallenge({{ challenge.id }})" 
+                                            class="btn btn-xs btn-success btn-outline">
+                                        Approve
+                                    </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="9" class="text-center text-base-content/50 py-8">
+                                No challenges found. Try adjusting your filters or sync from GitHub.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function approveChallenge(id) {
+    if (!confirm('Are you sure you want to approve this challenge and merge the PR?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/challenges/${id}/approve`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error approving challenge: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

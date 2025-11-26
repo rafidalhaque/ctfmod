@@ -1,0 +1,45 @@
+import os
+from flask import Flask
+from flask_login import LoginManager
+from dotenv import load_dotenv
+
+load_dotenv()
+
+login_manager = LoginManager()
+
+
+def create_app():
+    app = Flask(__name__)
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+    
+    # Supabase configuration
+    app.config['SUPABASE_URL'] = os.getenv('SUPABASE_URL', '')
+    app.config['SUPABASE_KEY'] = os.getenv('SUPABASE_KEY', '')
+    
+    # GitHub configuration
+    app.config['GITHUB_TOKEN'] = os.getenv('GITHUB_TOKEN', '')
+    app.config['GITHUB_REPO_OWNER'] = os.getenv('GITHUB_REPO_OWNER', '')
+    app.config['GITHUB_REPO_NAME'] = os.getenv('GITHUB_REPO_NAME', '')
+    
+    # CTFd configuration
+    app.config['CTFD_URL'] = os.getenv('CTFD_URL', '')
+    app.config['CTFD_API_KEY'] = os.getenv('CTFD_API_KEY', '')
+    
+    # Initialize Flask-Login
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    
+    # Register blueprints
+    from app.routes.auth import auth_bp
+    from app.routes.dashboard import dashboard_bp
+    from app.routes.challenges import challenges_bp
+    from app.routes.settings import settings_bp
+    from app.routes.api import api_bp
+    
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(challenges_bp)
+    app.register_blueprint(settings_bp)
+    app.register_blueprint(api_bp, url_prefix='/api')
+    
+    return app
