@@ -246,13 +246,13 @@
                         {% for target in targets %}
                         <tr>
                             <td>
-                                {% set round_name = 'All Rounds' %}
+                                {% set ns = namespace(round_name='All Rounds') %}
                                 {% for round in rounds %}
                                     {% if round.id == target.round_id %}
-                                        {% set round_name = round.name %}
+                                        {% set ns.round_name = round.name %}
                                     {% endif %}
                                 {% endfor %}
-                                <span class="badge badge-outline badge-primary">{{ round_name }}</span>
+                                <span class="badge badge-outline badge-primary">{{ ns.round_name }}</span>
                             </td>
                             <td><span class="badge badge-outline">{{ target.category }}</span></td>
                             <td>
@@ -267,7 +267,10 @@
                                 {% endif %}
                             </td>
                             <td>{{ target.target_count }}</td>
-                            <td>
+                            <td class="flex gap-1">
+                                <button onclick="showEditTargetModal({{ target.id }}, '{{ target.round_id or '' }}', '{{ target.category }}', '{{ target.difficulty }}', {{ target.target_count }})" class="btn btn-xs btn-primary btn-ghost">
+                                    Edit
+                                </button>
                                 <button onclick="deleteTarget({{ target.id }})" class="btn btn-xs btn-error btn-ghost">
                                     Delete
                                 </button>
@@ -371,6 +374,68 @@
             <div class="modal-action">
                 <button type="button" onclick="closeAddTargetModal()" class="btn btn-ghost">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Target</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Edit Target Modal -->
+<dialog id="editTargetModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Edit Challenge Target</h3>
+        <form id="editTargetForm" class="space-y-4 mt-4">
+            <input type="hidden" name="target_id" id="editTargetId" />
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Round (optional)</span>
+                </label>
+                <select name="round_id" id="editTargetRoundSelect" class="select select-bordered w-full">
+                    <option value="">All Rounds</option>
+                    {% for round in rounds %}
+                    <option value="{{ round.id }}">{{ round.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Category</span>
+                </label>
+                <select name="category" id="editTargetCategorySelect" class="select select-bordered w-full" required>
+                    <option value="">Select Category</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Difficulty</span>
+                </label>
+                <select name="difficulty" id="editTargetDifficultySelect" class="select select-bordered w-full" required>
+                    <option value="">Select Difficulty</option>
+                    {% for diff in difficulties %}
+                    <option value="{{ diff }}">{{ diff }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Target Count</span>
+                </label>
+                <input type="number" name="target_count" id="editTargetCount" min="1" value="5" 
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" onclick="closeEditTargetModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Target</button>
             </div>
         </form>
     </div>
@@ -661,6 +726,57 @@ document.getElementById('newDifficultyInput').addEventListener('keypress', (e) =
     if (e.key === 'Enter') {
         e.preventDefault();
         addDifficulty();
+    }
+});
+
+// Edit Target Modal Functions
+function showEditTargetModal(targetId, roundId, category, difficulty, targetCount) {
+    document.getElementById('editTargetId').value = targetId;
+    document.getElementById('editTargetRoundSelect').value = roundId || '';
+    document.getElementById('editTargetCategorySelect').value = category;
+    document.getElementById('editTargetDifficultySelect').value = difficulty;
+    document.getElementById('editTargetCount').value = targetCount;
+    document.getElementById('editTargetModal').showModal();
+}
+
+function closeEditTargetModal() {
+    document.getElementById('editTargetModal').close();
+}
+
+document.getElementById('editTargetForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    const targetId = data.target_id;
+    delete data.target_id;
+    data.target_count = parseInt(data.target_count);
+    
+    // Only include round_id if it's set
+    if (!data.round_id) {
+        data.round_id = null;
+    } else {
+        data.round_id = parseInt(data.round_id);
+    }
+    
+    try {
+        const response = await fetch(`/settings/targets/${targetId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeEditTargetModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error updating target: ' + error.message);
     }
 });
 </script>
