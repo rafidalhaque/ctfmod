@@ -95,6 +95,36 @@
                 </div>
             </div>
 
+            <!-- Hint -->
+            {% if challenge.hint %}
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                        </svg>
+                        Hint
+                    </h2>
+                    <p class="whitespace-pre-wrap text-warning">{{ challenge.hint }}</p>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Solution -->
+            {% if challenge.solution %}
+            <div class="card bg-base-100 shadow-xl border border-success/20">
+                <div class="card-body">
+                    <h2 class="card-title text-success">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Solution
+                    </h2>
+                    <p class="whitespace-pre-wrap">{{ challenge.solution }}</p>
+                </div>
+            </div>
+            {% endif %}
+
             <!-- README Content -->
             {% if readme_content %}
             <div class="card bg-base-100 shadow-xl">
@@ -124,7 +154,7 @@
                                 {% else %}
                                 <tr>
                                     <th class="w-1/3">{{ key }}</th>
-                                    <td>{{ value }}</td>
+                                    <td class="whitespace-pre-wrap">{{ value }}</td>
                                 </tr>
                                 {% endif %}
                                 {% endfor %}
@@ -144,13 +174,34 @@
                     <h2 class="card-title">Details</h2>
                     <div class="space-y-3">
                         <div class="flex justify-between">
+                            <span class="text-base-content/70">Name</span>
+                            <span class="font-medium">{{ challenge.name }}</span>
+                        </div>
+                        <div class="flex justify-between">
                             <span class="text-base-content/70">Setter</span>
                             <span class="font-medium">{{ challenge.setter or 'Unknown' }}</span>
                         </div>
                         <div class="flex justify-between">
-                            <span class="text-base-content/70">Points</span>
-                            <span class="font-medium">{{ challenge.points or 100 }}</span>
+                            <span class="text-base-content/70">Category</span>
+                            <span class="badge badge-outline">{{ challenge.category }}</span>
                         </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">Difficulty</span>
+                            {% if challenge.difficulty == 'Easy' %}
+                            <span class="badge badge-success">{{ challenge.difficulty }}</span>
+                            {% elif challenge.difficulty == 'Medium' %}
+                            <span class="badge badge-warning">{{ challenge.difficulty }}</span>
+                            {% elif challenge.difficulty == 'Hard' %}
+                            <span class="badge badge-error">{{ challenge.difficulty }}</span>
+                            {% else %}
+                            <span class="badge">{{ challenge.difficulty or 'N/A' }}</span>
+                            {% endif %}
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-base-content/70">Points</span>
+                            <span class="font-medium badge badge-primary">{{ challenge.points or 100 }} pts</span>
+                        </div>
+                        <div class="divider my-1"></div>
                         <div class="flex justify-between">
                             <span class="text-base-content/70">PR Number</span>
                             <span class="font-medium">
@@ -163,7 +214,7 @@
                         </div>
                         <div class="flex justify-between">
                             <span class="text-base-content/70">Branch</span>
-                            <span class="font-medium">{{ challenge.branch or 'N/A' }}</span>
+                            <span class="font-medium text-sm">{{ challenge.branch or 'N/A' }}</span>
                         </div>
                         <div class="flex justify-between">
                             <span class="text-base-content/70">CTFd ID</span>
@@ -173,11 +224,16 @@
                 </div>
             </div>
 
-            <!-- Flag (if admin) -->
+            <!-- Flag -->
             {% if challenge.flag %}
-            <div class="card bg-base-100 shadow-xl">
+            <div class="card bg-base-100 shadow-xl border border-primary/20">
                 <div class="card-body">
-                    <h2 class="card-title">Flag</h2>
+                    <h2 class="card-title text-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                        </svg>
+                        Flag
+                    </h2>
                     <div class="mockup-code bg-base-200">
                         <pre><code>{{ challenge.flag }}</code></pre>
                     </div>
