@@ -12,6 +12,9 @@ def index():
     supabase = get_supabase_client()
     settings = {}
     targets = []
+    rounds = []
+    categories = []
+    difficulties = []
     
     if supabase:
         try:
@@ -21,14 +24,33 @@ def index():
                 for setting in settings_response.data:
                     settings[setting['key']] = setting['value']
             
+            # Parse categories and difficulties from settings
+            if settings.get('categories'):
+                categories = [cat.strip() for cat in settings['categories'].split(',')]
+            if settings.get('difficulties'):
+                difficulties = [d.strip() for d in settings['difficulties'].split(',')]
+            
             # Fetch targets
             targets_response = supabase.table('targets').select('*').execute()
             targets = targets_response.data if targets_response.data else []
             
+            # Fetch rounds
+            try:
+                rounds_response = supabase.table('rounds').select('*').execute()
+                rounds = rounds_response.data if rounds_response.data else []
+            except Exception:
+                # Table might not exist yet
+                rounds = []
+            
         except Exception as e:
             flash(f'Error fetching settings: {str(e)}', 'error')
     
-    return render_template('settings/index.html', settings=settings, targets=targets)
+    return render_template('settings/index.html', 
+                          settings=settings, 
+                          targets=targets, 
+                          rounds=rounds,
+                          categories=categories,
+                          difficulties=difficulties)
 
 
 @settings_bp.route('/settings/update', methods=['POST'])
@@ -69,16 +91,35 @@ def update_targets():
         category = data.get('category')
         difficulty = data.get('difficulty')
         target_count = data.get('target_count', 0)
+        round_id = data.get('round_id')
         
         if not category or not difficulty:
             return jsonify({'error': 'Category and difficulty are required'}), 400
         
-        # Upsert target
-        supabase.table('targets').upsert({
+        target_data = {
             'category': category,
             'difficulty': difficulty,
             'target_count': target_count
-        }, on_conflict='category,difficulty').execute()
+        }
+        
+        # Add round_id if provided, otherwise set to None explicitly
+        target_data['round_id'] = round_id if round_id else None
+        
+        # Check if a target already exists with same category, difficulty, and round_id
+        query = supabase.table('targets').select('id').eq('category', category).eq('difficulty', difficulty)
+        if round_id:
+            query = query.eq('round_id', round_id)
+        else:
+            query = query.is_('round_id', 'null')
+        
+        existing = query.execute()
+        
+        if existing.data:
+            # Update existing target
+            supabase.table('targets').update({'target_count': target_count}).eq('id', existing.data[0]['id']).execute()
+        else:
+            # Insert new target
+            supabase.table('targets').insert(target_data).execute()
         
         return jsonify({'success': True, 'message': 'Target updated successfully'})
     except Exception as e:
@@ -97,5 +138,51 @@ def delete_target(target_id):
     try:
         supabase.table('targets').delete().eq('id', target_id).execute()
         return jsonify({'success': True, 'message': 'Target deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/rounds', methods=['POST'])
+@login_required
+def create_round():
+    """Create a new round."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'Round name is required'}), 400
+        
+        round_data = {
+            'name': name,
+            'description': data.get('description', '')
+        }
+        
+        response = supabase.table('rounds').insert(round_data).execute()
+        return jsonify({'success': True, 'data': response.data[0] if response.data else None})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/rounds/<int:round_id>', methods=['DELETE'])
+@login_required
+def delete_round(round_id):
+    """Delete a round."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # First, update targets to remove round_id reference
+        supabase.table('targets').update({'round_id': None}).eq('round_id', round_id).execute()
+        # Then delete the round
+        supabase.table('rounds').delete().eq('id', round_id).execute()
+        return jsonify({'success': True, 'message': 'Round deleted successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

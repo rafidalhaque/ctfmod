@@ -124,28 +124,95 @@
         <!-- Challenge Categories -->
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-                <h2 class="card-title">Challenge Categories</h2>
+                <h2 class="card-title">Challenge Categories & Difficulties</h2>
                 <form id="categoriesForm" class="space-y-4">
                     <div class="form-control">
                         <label class="label">
-                            <span class="label-text">Categories (comma-separated)</span>
+                            <span class="label-text">Categories</span>
                         </label>
-                        <input type="text" name="categories" 
-                               value="{{ settings.get('categories', 'Web, Pwn, Rev, Crypto, Forensics, Misc') }}"
-                               class="input input-bordered w-full" />
+                        <div id="categoriesContainer" class="flex flex-wrap gap-2 mb-2">
+                            {% for cat in categories %}
+                            <span class="badge badge-lg gap-1">
+                                {{ cat }}
+                                <button type="button" onclick="removeCategory('{{ cat }}')" class="btn btn-ghost btn-xs">×</button>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        <div class="join w-full">
+                            <input type="text" id="newCategoryInput" placeholder="Add new category" class="input input-bordered join-item flex-1" />
+                            <button type="button" onclick="addCategory()" class="btn btn-primary join-item">Add</button>
+                        </div>
+                        <input type="hidden" name="categories" id="categoriesHidden" value="{{ settings.get('categories', 'Web, Pwn, Rev, Crypto, Forensics, Misc, OSINT') }}" />
                     </div>
                     
                     <div class="form-control">
                         <label class="label">
-                            <span class="label-text">Difficulties (comma-separated)</span>
+                            <span class="label-text">Difficulties</span>
                         </label>
-                        <input type="text" name="difficulties" 
-                               value="{{ settings.get('difficulties', 'Easy, Medium, Hard') }}"
-                               class="input input-bordered w-full" />
+                        <div id="difficultiesContainer" class="flex flex-wrap gap-2 mb-2">
+                            {% for diff in difficulties %}
+                            <span class="badge badge-lg gap-1 {% if diff == 'Easy' %}badge-success{% elif diff == 'Medium' %}badge-warning{% elif diff == 'Hard' %}badge-error{% endif %}">
+                                {{ diff }}
+                                <button type="button" onclick="removeDifficulty('{{ diff }}')" class="btn btn-ghost btn-xs">×</button>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        <div class="join w-full">
+                            <input type="text" id="newDifficultyInput" placeholder="Add new difficulty" class="input input-bordered join-item flex-1" />
+                            <button type="button" onclick="addDifficulty()" class="btn btn-primary join-item">Add</button>
+                        </div>
+                        <input type="hidden" name="difficulties" id="difficultiesHidden" value="{{ settings.get('difficulties', 'Easy, Medium, Hard') }}" />
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">Save Categories</button>
+                    <button type="submit" class="btn btn-primary">Save Categories & Difficulties</button>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rounds Management -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex justify-between items-center">
+                <h2 class="card-title">CTF Rounds</h2>
+                <button onclick="showAddRoundModal()" class="btn btn-primary btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add Round
+                </button>
+            </div>
+            <p class="text-base-content/70 text-sm mb-4">Manage CTF rounds (e.g., Preliminary, Final)</p>
+            
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for round in rounds %}
+                        <tr>
+                            <td><span class="badge badge-primary">{{ round.name }}</span></td>
+                            <td>{{ round.description or '-' }}</td>
+                            <td>
+                                <button onclick="deleteRound({{ round.id }})" class="btn btn-xs btn-error btn-ghost">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="3" class="text-center text-base-content/50">
+                                No rounds defined. Click "Add Round" to create one.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -162,12 +229,13 @@
                     Add Target
                 </button>
             </div>
-            <p class="text-base-content/70 text-sm mb-4">Set target number of challenges by category and difficulty</p>
+            <p class="text-base-content/70 text-sm mb-4">Set target number of challenges by category, difficulty, and round</p>
             
             <div class="overflow-x-auto">
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>Round</th>
                             <th>Category</th>
                             <th>Difficulty</th>
                             <th>Target</th>
@@ -177,6 +245,15 @@
                     <tbody>
                         {% for target in targets %}
                         <tr>
+                            <td>
+                                {% set round_name = 'All Rounds' %}
+                                {% for round in rounds %}
+                                    {% if round.id == target.round_id %}
+                                        {% set round_name = round.name %}
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="badge badge-outline badge-primary">{{ round_name }}</span>
+                            </td>
                             <td><span class="badge badge-outline">{{ target.category }}</span></td>
                             <td>
                                 {% if target.difficulty == 'Easy' %}
@@ -198,7 +275,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="4" class="text-center text-base-content/50">
+                            <td colspan="5" class="text-center text-base-content/50">
                                 No targets set. Click "Add Target" to create one.
                             </td>
                         </tr>
@@ -210,6 +287,38 @@
     </div>
 </div>
 
+<!-- Add Round Modal -->
+<dialog id="addRoundModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Add CTF Round</h3>
+        <form id="addRoundForm" class="space-y-4 mt-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Round Name</span>
+                </label>
+                <input type="text" name="name" placeholder="e.g., Preliminary, Final" 
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Description (optional)</span>
+                </label>
+                <textarea name="description" placeholder="Round description..." 
+                          class="textarea textarea-bordered w-full"></textarea>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" onclick="closeAddRoundModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Round</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
 <!-- Add Target Modal -->
 <dialog id="addTargetModal" class="modal">
     <div class="modal-box">
@@ -217,16 +326,25 @@
         <form id="addTargetForm" class="space-y-4 mt-4">
             <div class="form-control">
                 <label class="label">
+                    <span class="label-text">Round (optional)</span>
+                </label>
+                <select name="round_id" id="targetRoundSelect" class="select select-bordered w-full">
+                    <option value="">All Rounds</option>
+                    {% for round in rounds %}
+                    <option value="{{ round.id }}">{{ round.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
                     <span class="label-text">Category</span>
                 </label>
-                <select name="category" class="select select-bordered w-full" required>
+                <select name="category" id="targetCategorySelect" class="select select-bordered w-full" required>
                     <option value="">Select Category</option>
-                    <option value="Web">Web</option>
-                    <option value="Pwn">Pwn</option>
-                    <option value="Rev">Rev</option>
-                    <option value="Crypto">Crypto</option>
-                    <option value="Forensics">Forensics</option>
-                    <option value="Misc">Misc</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat }}">{{ cat }}</option>
+                    {% endfor %}
                 </select>
             </div>
             
@@ -234,11 +352,11 @@
                 <label class="label">
                     <span class="label-text">Difficulty</span>
                 </label>
-                <select name="difficulty" class="select select-bordered w-full" required>
+                <select name="difficulty" id="targetDifficultySelect" class="select select-bordered w-full" required>
                     <option value="">Select Difficulty</option>
-                    <option value="Easy">Easy</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Hard">Hard</option>
+                    {% for diff in difficulties %}
+                    <option value="{{ diff }}">{{ diff }}</option>
+                    {% endfor %}
                 </select>
             </div>
             
@@ -251,18 +369,113 @@
             </div>
             
             <div class="modal-action">
-                <form method="dialog">
-                    <button class="btn btn-ghost">Cancel</button>
-                </form>
+                <button type="button" onclick="closeAddTargetModal()" class="btn btn-ghost">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Target</button>
             </div>
         </form>
     </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
 </dialog>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Categories management
+let currentCategories = {{ categories | tojson | safe if categories else '[]' }};
+let currentDifficulties = {{ difficulties | tojson | safe if difficulties else '[]' }};
+
+function updateCategoriesDisplay() {
+    const container = document.getElementById('categoriesContainer');
+    container.innerHTML = currentCategories.map(cat => `
+        <span class="badge badge-lg gap-1">
+            ${cat}
+            <button type="button" onclick="removeCategory('${cat}')" class="btn btn-ghost btn-xs">×</button>
+        </span>
+    `).join('');
+    document.getElementById('categoriesHidden').value = currentCategories.join(', ');
+}
+
+function updateDifficultiesDisplay() {
+    const container = document.getElementById('difficultiesContainer');
+    container.innerHTML = currentDifficulties.map(diff => {
+        let badgeClass = '';
+        if (diff === 'Easy') badgeClass = 'badge-success';
+        else if (diff === 'Medium') badgeClass = 'badge-warning';
+        else if (diff === 'Hard') badgeClass = 'badge-error';
+        return `
+            <span class="badge badge-lg gap-1 ${badgeClass}">
+                ${diff}
+                <button type="button" onclick="removeDifficulty('${diff}')" class="btn btn-ghost btn-xs">×</button>
+            </span>
+        `;
+    }).join('');
+    document.getElementById('difficultiesHidden').value = currentDifficulties.join(', ');
+}
+
+function addCategory() {
+    const input = document.getElementById('newCategoryInput');
+    const value = input.value.trim();
+    // Case-insensitive duplicate check
+    const exists = currentCategories.some(cat => cat.toLowerCase() === value.toLowerCase());
+    if (value && !exists) {
+        currentCategories.push(value);
+        updateCategoriesDisplay();
+        updateTargetCategorySelect();
+        input.value = '';
+    } else if (exists) {
+        alert('Category already exists (case-insensitive).');
+    }
+}
+
+function removeCategory(cat) {
+    currentCategories = currentCategories.filter(c => c !== cat);
+    updateCategoriesDisplay();
+    updateTargetCategorySelect();
+}
+
+function addDifficulty() {
+    const input = document.getElementById('newDifficultyInput');
+    const value = input.value.trim();
+    // Case-insensitive duplicate check
+    const exists = currentDifficulties.some(diff => diff.toLowerCase() === value.toLowerCase());
+    if (value && !exists) {
+        currentDifficulties.push(value);
+        updateDifficultiesDisplay();
+        updateTargetDifficultySelect();
+        input.value = '';
+    } else if (exists) {
+        alert('Difficulty already exists (case-insensitive).');
+    }
+}
+
+function removeDifficulty(diff) {
+    currentDifficulties = currentDifficulties.filter(d => d !== diff);
+    updateDifficultiesDisplay();
+    updateTargetDifficultySelect();
+}
+
+function updateTargetCategorySelect() {
+    const select = document.getElementById('targetCategorySelect');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select Category</option>' + 
+        currentCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    if (currentCategories.includes(currentValue)) {
+        select.value = currentValue;
+    }
+}
+
+function updateTargetDifficultySelect() {
+    const select = document.getElementById('targetDifficultySelect');
+    const currentValue = select.value;
+    select.innerHTML = '<option value="">Select Difficulty</option>' + 
+        currentDifficulties.map(diff => `<option value="${diff}">${diff}</option>`).join('');
+    if (currentDifficulties.includes(currentValue)) {
+        select.value = currentValue;
+    }
+}
+
 // Site Settings Form
 document.getElementById('siteSettingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -303,6 +516,7 @@ async function saveSettings(formData) {
         
         if (result.success) {
             alert('Settings saved successfully!');
+            location.reload();
         } else {
             alert('Error: ' + (result.error || 'Unknown error'));
         }
@@ -311,8 +525,71 @@ async function saveSettings(formData) {
     }
 }
 
+// Round Modal Functions
+function showAddRoundModal() {
+    document.getElementById('addRoundModal').showModal();
+}
+
+function closeAddRoundModal() {
+    document.getElementById('addRoundModal').close();
+}
+
+document.getElementById('addRoundForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    
+    try {
+        const response = await fetch('/settings/rounds', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeAddRoundModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error adding round: ' + error.message);
+    }
+});
+
+async function deleteRound(id) {
+    if (!confirm('Are you sure you want to delete this round? Associated targets will be updated.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/settings/rounds/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error deleting round: ' + error.message);
+    }
+}
+
+// Target Modal Functions
 function showAddTargetModal() {
     document.getElementById('addTargetModal').showModal();
+}
+
+function closeAddTargetModal() {
+    document.getElementById('addTargetModal').close();
 }
 
 document.getElementById('addTargetForm').addEventListener('submit', async (e) => {
@@ -320,6 +597,13 @@ document.getElementById('addTargetForm').addEventListener('submit', async (e) =>
     const formData = new FormData(e.target);
     const data = Object.fromEntries(formData);
     data.target_count = parseInt(data.target_count);
+    
+    // Only include round_id if it's set
+    if (!data.round_id) {
+        delete data.round_id;
+    } else {
+        data.round_id = parseInt(data.round_id);
+    }
     
     try {
         const response = await fetch('/settings/targets', {
@@ -333,7 +617,7 @@ document.getElementById('addTargetForm').addEventListener('submit', async (e) =>
         const result = await response.json();
         
         if (result.success) {
-            document.getElementById('addTargetModal').close();
+            closeAddTargetModal();
             location.reload();
         } else {
             alert('Error: ' + (result.error || 'Unknown error'));
@@ -364,5 +648,20 @@ async function deleteTarget(id) {
         alert('Error deleting target: ' + error.message);
     }
 }
+
+// Handle Enter key for category/difficulty inputs
+document.getElementById('newCategoryInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        addCategory();
+    }
+});
+
+document.getElementById('newDifficultyInput').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        addDifficulty();
+    }
+});
 </script>
 {% endblock %}
