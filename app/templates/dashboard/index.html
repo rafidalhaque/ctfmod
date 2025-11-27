@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Dashboard</h1>
+            <p class="text-base-content/70">Overview of your CTF challenges</p>
+        </div>
+        <button onclick="syncGitHub()" class="btn btn-primary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Sync from GitHub
+        </button>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat bg-base-100 rounded-box shadow">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+            </div>
+            <div class="stat-title">Total Challenges</div>
+            <div class="stat-value text-primary">{{ stats.total_challenges }}</div>
+        </div>
+        
+        <div class="stat bg-base-100 rounded-box shadow">
+            <div class="stat-figure text-success">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Accepted</div>
+            <div class="stat-value text-success">{{ stats.accepted_challenges }}</div>
+        </div>
+        
+        <div class="stat bg-base-100 rounded-box shadow">
+            <div class="stat-figure text-warning">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Pending</div>
+            <div class="stat-value text-warning">{{ stats.pending_challenges }}</div>
+        </div>
+        
+        <div class="stat bg-base-100 rounded-box shadow">
+            <div class="stat-figure text-error">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Declined</div>
+            <div class="stat-value text-error">{{ stats.declined_challenges }}</div>
+        </div>
+    </div>
+
+    <!-- Progress by Category and Difficulty -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- By Category -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Progress by Category</h2>
+                <div class="overflow-x-auto">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Total</th>
+                                <th>Accepted</th>
+                                <th>Pending</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category, data in stats.by_category.items() %}
+                            <tr>
+                                <td>
+                                    <span class="badge badge-outline">{{ category }}</span>
+                                </td>
+                                <td>{{ data.total }}</td>
+                                <td class="text-success">{{ data.accepted }}</td>
+                                <td class="text-warning">{{ data.pending }}</td>
+                                <td>
+                                    <progress class="progress progress-success w-20" 
+                                              value="{{ data.accepted }}" 
+                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-base-content/50">No data available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- By Difficulty -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Progress by Difficulty</h2>
+                <div class="overflow-x-auto">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Difficulty</th>
+                                <th>Total</th>
+                                <th>Accepted</th>
+                                <th>Pending</th>
+                                <th>Progress</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for difficulty, data in stats.by_difficulty.items() %}
+                            <tr>
+                                <td>
+                                    {% if difficulty == 'Easy' %}
+                                    <span class="badge badge-success">{{ difficulty }}</span>
+                                    {% elif difficulty == 'Medium' %}
+                                    <span class="badge badge-warning">{{ difficulty }}</span>
+                                    {% elif difficulty == 'Hard' %}
+                                    <span class="badge badge-error">{{ difficulty }}</span>
+                                    {% else %}
+                                    <span class="badge">{{ difficulty }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ data.total }}</td>
+                                <td class="text-success">{{ data.accepted }}</td>
+                                <td class="text-warning">{{ data.pending }}</td>
+                                <td>
+                                    <progress class="progress progress-success w-20" 
+                                              value="{{ data.accepted }}" 
+                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-base-content/50">No data available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Targets Overview -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title">Challenge Targets</h2>
+            {% if targets %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {% for target in targets %}
+                {% set key = target.category ~ '_' ~ target.difficulty %}
+                {% set current = 0 %}
+                {% if target.category in stats.by_category and target.difficulty in stats.by_difficulty %}
+                    {% set current = stats.by_category[target.category].accepted %}
+                {% endif %}
+                <div class="card bg-base-200">
+                    <div class="card-body p-4">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <span class="badge badge-outline">{{ target.category }}</span>
+                                {% if target.difficulty == 'Easy' %}
+                                <span class="badge badge-success badge-sm ml-1">{{ target.difficulty }}</span>
+                                {% elif target.difficulty == 'Medium' %}
+                                <span class="badge badge-warning badge-sm ml-1">{{ target.difficulty }}</span>
+                                {% elif target.difficulty == 'Hard' %}
+                                <span class="badge badge-error badge-sm ml-1">{{ target.difficulty }}</span>
+                                {% else %}
+                                <span class="badge badge-sm ml-1">{{ target.difficulty }}</span>
+                                {% endif %}
+                            </div>
+                            <span class="font-bold">{{ current }} / {{ target.target_count }}</span>
+                        </div>
+                        <progress class="progress progress-primary w-full mt-2" 
+                                  value="{{ current }}" 
+                                  max="{{ target.target_count if target.target_count > 0 else 1 }}"></progress>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-base-content/50">No targets set. <a href="{{ url_for('settings.index') }}" class="link link-primary">Set targets in settings</a></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Challenges -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="flex justify-between items-center">
+                <h2 class="card-title">Recent Challenges</h2>
+                <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-sm btn-ghost">View All</a>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Difficulty</th>
+                            <th>Setter</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for challenge in challenges[:5] %}
+                        <tr>
+                            <td>{{ challenge.name }}</td>
+                            <td><span class="badge badge-outline">{{ challenge.category }}</span></td>
+                            <td>
+                                {% if challenge.difficulty == 'Easy' %}
+                                <span class="badge badge-success">{{ challenge.difficulty }}</span>
+                                {% elif challenge.difficulty == 'Medium' %}
+                                <span class="badge badge-warning">{{ challenge.difficulty }}</span>
+                                {% elif challenge.difficulty == 'Hard' %}
+                                <span class="badge badge-error">{{ challenge.difficulty }}</span>
+                                {% else %}
+                                <span class="badge">{{ challenge.difficulty }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ challenge.setter or 'Unknown' }}</td>
+                            <td>
+                                {% if challenge.status == 'accepted' %}
+                                <span class="badge badge-success">Accepted</span>
+                                {% elif challenge.status == 'pending' %}
+                                <span class="badge badge-warning">Pending</span>
+                                {% elif challenge.status == 'declined' %}
+                                <span class="badge badge-error">Declined</span>
+                                {% else %}
+                                <span class="badge">{{ challenge.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
+                                   class="btn btn-xs btn-ghost">View</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/50">No challenges found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function syncGitHub() {
+    const btn = event.target;
+    btn.classList.add('loading');
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/sync-github', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error syncing from GitHub: ' + error.message);
+    } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

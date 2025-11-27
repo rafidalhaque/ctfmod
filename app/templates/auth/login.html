@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block title %}Login - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="min-h-[80vh] flex items-center justify-center">
+    <div class="card w-full max-w-md bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-2xl font-bold text-center justify-center mb-4">
+                🚩 CTF Challenge Manager
+            </h2>
+            <p class="text-center text-base-content/70 mb-6">Sign in to manage your CTF challenges</p>
+            
+            <form method="POST" action="{{ url_for('auth.login') }}">
+                <div class="form-control mb-4">
+                    <label class="label">
+                        <span class="label-text">Email</span>
+                    </label>
+                    <input type="email" name="email" placeholder="email@example.com" 
+                           class="input input-bordered w-full" required />
+                </div>
+                
+                <div class="form-control mb-6">
+                    <label class="label">
+                        <span class="label-text">Password</span>
+                    </label>
+                    <input type="password" name="password" placeholder="••••••••" 
+                           class="input input-bordered w-full" required />
+                </div>
+                
+                <div class="form-control">
+                    <button type="submit" class="btn btn-primary w-full">
+                        Sign In
+                    </button>
+                </div>
+            </form>
+            
+            <div class="divider">OR</div>
+            
+            <p class="text-center">
+                Don't have an account? 
+                <a href="{{ url_for('auth.register') }}" class="link link-primary">Register</a>
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
