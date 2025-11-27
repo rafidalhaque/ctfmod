@@ -145,6 +145,11 @@ def update_target(target_id):
         if not category or not difficulty:
             return jsonify({'error': 'Category and difficulty are required'}), 400
         
+        # First check if the target exists
+        existing = supabase.table('targets').select('id').eq('id', target_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Target not found'}), 404
+        
         update_data = {
             'category': category,
             'difficulty': difficulty,

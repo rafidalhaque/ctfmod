@@ -151,13 +151,22 @@ def change_password():
                 flash('Database connection not configured.', 'error')
                 return render_template('auth/change_password.html')
             
-            # First verify the current password by attempting to sign in
+            # Save current session data
+            saved_user_data = session.get('user_data')
+            saved_access_token = session.get('access_token')
+            
+            # Verify the current password by attempting to sign in
             try:
                 supabase.auth.sign_in_with_password({
                     'email': current_user.email,
                     'password': current_password
                 })
             except Exception:
+                # Restore session data after failed verification
+                if saved_user_data:
+                    session['user_data'] = saved_user_data
+                if saved_access_token:
+                    session['access_token'] = saved_access_token
                 flash('Current password is incorrect.', 'error')
                 return render_template('auth/change_password.html')
             
@@ -165,6 +174,12 @@ def change_password():
             supabase.auth.update_user({
                 'password': new_password
             })
+            
+            # Restore the original session data
+            if saved_user_data:
+                session['user_data'] = saved_user_data
+            if saved_access_token:
+                session['access_token'] = saved_access_token
             
             flash('Password changed successfully!', 'success')
             return redirect(url_for('dashboard.index'))

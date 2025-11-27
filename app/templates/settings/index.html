@@ -268,7 +268,12 @@
                             </td>
                             <td>{{ target.target_count }}</td>
                             <td class="flex gap-1">
-                                <button onclick="showEditTargetModal({{ target.id }}, '{{ target.round_id or '' }}', '{{ target.category }}', '{{ target.difficulty }}', {{ target.target_count }})" class="btn btn-xs btn-primary btn-ghost">
+                                <button class="btn btn-xs btn-primary btn-ghost edit-target-btn"
+                                        data-target-id="{{ target.id }}"
+                                        data-round-id="{{ target.round_id or '' }}"
+                                        data-category="{{ target.category }}"
+                                        data-difficulty="{{ target.difficulty }}"
+                                        data-target-count="{{ target.target_count }}">
                                     Edit
                                 </button>
                                 <button onclick="deleteTarget({{ target.id }})" class="btn btn-xs btn-error btn-ghost">
@@ -742,6 +747,18 @@ function showEditTargetModal(targetId, roundId, category, difficulty, targetCoun
 function closeEditTargetModal() {
     document.getElementById('editTargetModal').close();
 }
+
+// Attach click handlers to edit buttons using data attributes
+document.querySelectorAll('.edit-target-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const targetId = this.dataset.targetId;
+        const roundId = this.dataset.roundId;
+        const category = this.dataset.category;
+        const difficulty = this.dataset.difficulty;
+        const targetCount = this.dataset.targetCount;
+        showEditTargetModal(targetId, roundId, category, difficulty, targetCount);
+    });
+});
 
 document.getElementById('editTargetForm').addEventListener('submit', async (e) => {
     e.preventDefault();
