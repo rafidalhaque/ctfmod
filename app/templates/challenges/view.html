@@ -148,13 +148,13 @@
                                 {% for key, value in challenge_yml.items() recursive %}
                                 {% if value is mapping %}
                                 <tr>
-                                    <th colspan="2" class="bg-base-200">{{ key }}</th>
+                                    <th colspan="2" class="bg-base-200">{{ key|e }}</th>
                                 </tr>
                                 {{ loop(value.items()) }}
                                 {% else %}
                                 <tr>
-                                    <th class="w-1/3">{{ key }}</th>
-                                    <td class="whitespace-pre-wrap">{{ value }}</td>
+                                    <th class="w-1/3">{{ key|e }}</th>
+                                    <td class="whitespace-pre-wrap">{{ value|e }}</td>
                                 </tr>
                                 {% endif %}
                                 {% endfor %}

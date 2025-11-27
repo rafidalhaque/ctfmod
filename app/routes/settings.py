@@ -102,15 +102,24 @@ def update_targets():
             'target_count': target_count
         }
         
-        # Add round_id if provided
-        if round_id:
-            target_data['round_id'] = round_id
+        # Add round_id if provided, otherwise set to None explicitly
+        target_data['round_id'] = round_id if round_id else None
         
-        # Upsert target - include round_id in the conflict resolution if rounds are used
+        # Check if a target already exists with same category, difficulty, and round_id
+        query = supabase.table('targets').select('id').eq('category', category).eq('difficulty', difficulty)
         if round_id:
-            supabase.table('targets').upsert(target_data, on_conflict='category,difficulty,round_id').execute()
+            query = query.eq('round_id', round_id)
         else:
-            supabase.table('targets').upsert(target_data, on_conflict='category,difficulty').execute()
+            query = query.is_('round_id', 'null')
+        
+        existing = query.execute()
+        
+        if existing.data:
+            # Update existing target
+            supabase.table('targets').update({'target_count': target_count}).eq('id', existing.data[0]['id']).execute()
+        else:
+            # Insert new target
+            supabase.table('targets').insert(target_data).execute()
         
         return jsonify({'success': True, 'message': 'Target updated successfully'})
     except Exception as e:

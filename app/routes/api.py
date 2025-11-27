@@ -3,8 +3,12 @@ from flask_login import login_required
 from app.supabase_client import get_supabase_client
 import requests
 import yaml
+from yaml import YAMLError
 
 api_bp = Blueprint('api', __name__)
+
+# Maximum YAML content size (100KB) to prevent DoS
+MAX_YAML_SIZE = 100 * 1024
 
 
 def fetch_challenge_yml(github_token, repo_owner, repo_name, branch):
@@ -48,10 +52,19 @@ def fetch_challenge_yml(github_token, repo_owner, repo_name, branch):
         if content_response.status_code != 200:
             return None
         
-        yml_content = yaml.safe_load(content_response.text)
+        # Check content size to prevent DoS
+        content_text = content_response.text
+        if len(content_text) > MAX_YAML_SIZE:
+            return None
+        
+        yml_content = yaml.safe_load(content_text)
+        
+        # Validate that yml_content is a dict
+        if not isinstance(yml_content, dict):
+            return None
         
         # Handle nested 'challenge' key if present
-        if 'challenge' in yml_content:
+        if 'challenge' in yml_content and isinstance(yml_content['challenge'], dict):
             yml_content = yml_content['challenge']
         
         # Extract challenge directory info for category if not specified
@@ -64,6 +77,9 @@ def fetch_challenge_yml(github_token, repo_owner, repo_name, branch):
             'path': challenge_path
         }
         
+    except YAMLError:
+        # YAML parsing error - file has invalid YAML syntax
+        return None
     except Exception:
         return None
 

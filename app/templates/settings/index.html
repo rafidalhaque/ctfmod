@@ -417,11 +417,15 @@ function updateDifficultiesDisplay() {
 function addCategory() {
     const input = document.getElementById('newCategoryInput');
     const value = input.value.trim();
-    if (value && !currentCategories.includes(value)) {
+    // Case-insensitive duplicate check
+    const exists = currentCategories.some(cat => cat.toLowerCase() === value.toLowerCase());
+    if (value && !exists) {
         currentCategories.push(value);
         updateCategoriesDisplay();
         updateTargetCategorySelect();
         input.value = '';
+    } else if (exists) {
+        alert('Category already exists (case-insensitive).');
     }
 }
 
@@ -434,11 +438,15 @@ function removeCategory(cat) {
 function addDifficulty() {
     const input = document.getElementById('newDifficultyInput');
     const value = input.value.trim();
-    if (value && !currentDifficulties.includes(value)) {
+    // Case-insensitive duplicate check
+    const exists = currentDifficulties.some(diff => diff.toLowerCase() === value.toLowerCase());
+    if (value && !exists) {
         currentDifficulties.push(value);
         updateDifficultiesDisplay();
         updateTargetDifficultySelect();
         input.value = '';
+    } else if (exists) {
+        alert('Difficulty already exists (case-insensitive).');
     }
 }
 
