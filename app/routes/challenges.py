@@ -76,11 +76,19 @@ def view_challenge(challenge_id):
     challenge = None
     readme_content = None
     challenge_yml = None
+    rounds = []
     
     if supabase:
         try:
             response = supabase.table('challenges').select('*').eq('id', challenge_id).single().execute()
             challenge = response.data
+            
+            # Fetch rounds for the round selector
+            try:
+                rounds_response = supabase.table('rounds').select('*').execute()
+                rounds = rounds_response.data if rounds_response.data else []
+            except Exception:
+                rounds = []
             
             if challenge:
                 # Try to fetch README.md and challenge.yml from GitHub
@@ -126,7 +134,8 @@ def view_challenge(challenge_id):
     return render_template('challenges/view.html',
                          challenge=challenge,
                          readme_content=readme_content,
-                         challenge_yml=challenge_yml)
+                         challenge_yml=challenge_yml,
+                         rounds=rounds)
 
 
 @challenges_bp.route('/challenges/<int:challenge_id>/approve', methods=['POST'])
@@ -348,6 +357,41 @@ def push_to_ctfd(challenge_id):
             else:
                 return jsonify({'error': f'Failed to create challenge on CTFd: {create_response.text}'}), 400
                 
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    
+    return jsonify({'error': 'Database not configured'}), 500
+
+
+@challenges_bp.route('/challenges/<int:challenge_id>/assign-round', methods=['POST'])
+@login_required
+def assign_round(challenge_id):
+    """Assign a challenge to a round."""
+    supabase = get_supabase_client()
+    
+    if supabase:
+        try:
+            data = request.json
+            round_id = data.get('round_id')
+            
+            # Verify challenge exists
+            existing = supabase.table('challenges').select('id').eq('id', challenge_id).execute()
+            if not existing.data:
+                return jsonify({'error': 'Challenge not found'}), 404
+            
+            # If round_id is provided, verify it exists
+            if round_id:
+                round_exists = supabase.table('rounds').select('id').eq('id', round_id).execute()
+                if not round_exists.data:
+                    return jsonify({'error': 'Round not found'}), 404
+            
+            # Update challenge with round_id (None if not provided)
+            supabase.table('challenges').update({
+                'round_id': round_id if round_id else None
+            }).eq('id', challenge_id).execute()
+            
+            return jsonify({'success': True, 'message': 'Challenge assigned to round successfully'})
+            
         except Exception as e:
             return jsonify({'error': str(e)}), 500
     
