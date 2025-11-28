@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Users - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Users</h1>
+            <p class="text-base-content/70">Registered users and contributors</p>
+        </div>
+        <a href="{{ url_for('settings.index') }}" class="btn btn-ghost btn-sm">
+            ← Back to Settings
+        </a>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th class="hidden md:table-cell">Joined</th>
+                            <th class="hidden lg:table-cell">Last Sign In</th>
+                            <th class="hidden sm:table-cell">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr class="hover">
+                            <td>
+                                <div class="flex items-center gap-3">
+                                    <div class="avatar placeholder">
+                                        <div class="bg-neutral text-neutral-content rounded-full w-10">
+                                            <span class="text-sm">{{ user.email[0].upper() if user.email else '?' }}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm truncate max-w-[150px] sm:max-w-none">{{ user.email.split('@')[0] if user.email else 'Unknown' }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="text-sm break-all">{{ user.email or 'N/A' }}</span>
+                            </td>
+                            <td>
+                                {% if user.role == 'admin' %}
+                                <span class="badge badge-primary badge-sm">Admin</span>
+                                {% elif user.role == 'setter' %}
+                                <span class="badge badge-secondary badge-sm">Setter</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-sm">User</span>
+                                {% endif %}
+                            </td>
+                            <td class="hidden md:table-cell">
+                                {% if user.created_at %}
+                                <span class="text-sm text-base-content/70">{{ user.created_at.split('T')[0] if 'T' in (user.created_at|string) else (user.created_at|string)[:10] }}</span>
+                                {% else %}
+                                <span class="text-sm text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="hidden lg:table-cell">
+                                {% if user.last_sign_in_at %}
+                                <span class="text-sm text-base-content/70">{{ user.last_sign_in_at.split('T')[0] if 'T' in (user.last_sign_in_at|string) else (user.last_sign_in_at|string)[:10] }}</span>
+                                {% else %}
+                                <span class="text-sm text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td class="hidden sm:table-cell">
+                                {% if user.email_confirmed is not none %}
+                                    {% if user.email_confirmed %}
+                                    <span class="badge badge-success badge-sm gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                        Verified
+                                    </span>
+                                    {% else %}
+                                    <span class="badge badge-warning badge-sm gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Pending
+                                    </span>
+                                    {% endif %}
+                                {% else %}
+                                <span class="text-sm text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/50 py-8">
+                                No users found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 text-sm text-base-content/50">
+                <p>Total users: {{ users|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

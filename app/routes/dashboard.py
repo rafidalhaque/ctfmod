@@ -20,7 +20,9 @@ def index():
         'by_category': {},
         'by_difficulty': {},
         'by_target': {},  # Stats organized by target (category + difficulty + round)
-        'targets': {}
+        'targets': {},
+        'targets_by_category': {},  # Aggregated targets by category
+        'targets_by_difficulty': {}  # Aggregated targets by difficulty
     }
     
     challenges = []
@@ -107,6 +109,18 @@ def index():
             for target in targets:
                 key = f"{target.get('category', 'Unknown')}_{target.get('difficulty', 'Unknown')}"
                 stats['targets'][key] = target.get('target_count', 0)
+                
+                # Aggregate targets by category
+                category = target.get('category', 'Unknown')
+                if category not in stats['targets_by_category']:
+                    stats['targets_by_category'][category] = 0
+                stats['targets_by_category'][category] += target.get('target_count', 0)
+                
+                # Aggregate targets by difficulty
+                difficulty = target.get('difficulty', 'Unknown')
+                if difficulty not in stats['targets_by_difficulty']:
+                    stats['targets_by_difficulty'][difficulty] = 0
+                stats['targets_by_difficulty'][difficulty] += target.get('target_count', 0)
                 
         except Exception as e:
             print(f"Error fetching dashboard data: {e}")

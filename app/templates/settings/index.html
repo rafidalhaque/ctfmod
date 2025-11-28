@@ -5,9 +5,17 @@
 {% block content %}
 <div class="space-y-6">
     <!-- Header -->
-    <div>
-        <h1 class="text-3xl font-bold">Settings</h1>
-        <p class="text-base-content/70">Configure your CTF Manager platform</p>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Settings</h1>
+            <p class="text-base-content/70">Configure your CTF Manager platform</p>
+        </div>
+        <a href="{{ url_for('settings.users_list') }}" class="btn btn-outline btn-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+            View Users
+        </a>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -236,36 +244,37 @@
 
     <!-- Rounds Management -->
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <div class="flex justify-between items-center">
-                <h2 class="card-title">CTF Rounds</h2>
+        <div class="card-body p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+                <h2 class="card-title text-lg">CTF Rounds</h2>
                 <button onclick="showAddRoundModal()" class="btn btn-primary btn-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Add Round
+                    <span class="hidden sm:inline">Add Round</span>
+                    <span class="sm:hidden">Add</span>
                 </button>
             </div>
-            <p class="text-base-content/70 text-sm mb-4">Manage CTF rounds (e.g., Preliminary, Final) with schedule and countdown</p>
+            <p class="text-base-content/70 text-xs sm:text-sm mb-4">Manage CTF rounds (e.g., Preliminary, Final) with schedule and countdown</p>
             
-            <div class="overflow-x-auto">
-                <table class="table">
+            <div class="overflow-x-auto -mx-4 sm:mx-0">
+                <table class="table table-sm sm:table-md">
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Description</th>
+                            <th class="hidden sm:table-cell">Description</th>
                             <th>Schedule</th>
-                            <th>Timezone</th>
+                            <th class="hidden md:table-cell">Timezone</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for round in rounds %}
                         <tr>
-                            <td><span class="badge badge-primary">{{ round.name }}</span></td>
-                            <td>{{ round.description or '-' }}</td>
-                            <td>{{ round.start_datetime_display or '-' }}</td>
-                            <td>{{ round.timezone or 'UTC' }}</td>
+                            <td><span class="badge badge-primary badge-sm">{{ round.name }}</span></td>
+                            <td class="hidden sm:table-cell text-sm">{{ round.description or '-' }}</td>
+                            <td class="text-xs sm:text-sm">{{ round.start_datetime_display or '-' }}</td>
+                            <td class="hidden md:table-cell text-sm">{{ round.timezone or 'UTC' }}</td>
                             <td class="flex gap-1">
                                 <button class="btn btn-xs btn-primary btn-ghost edit-round-btn"
                                         data-round-id="{{ round.id }}"
@@ -295,23 +304,24 @@
 
     <!-- Challenge Targets -->
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <div class="flex justify-between items-center">
-                <h2 class="card-title">Challenge Targets</h2>
+        <div class="card-body p-4 sm:p-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-0">
+                <h2 class="card-title text-lg">Challenge Targets</h2>
                 <button onclick="showAddTargetModal()" class="btn btn-primary btn-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                     </svg>
-                    Add Target
+                    <span class="hidden sm:inline">Add Target</span>
+                    <span class="sm:hidden">Add</span>
                 </button>
             </div>
-            <p class="text-base-content/70 text-sm mb-4">Set target number of challenges by category, difficulty, and round</p>
+            <p class="text-base-content/70 text-xs sm:text-sm mb-4">Set target number of challenges by category, difficulty, and round</p>
             
-            <div class="overflow-x-auto">
-                <table class="table">
+            <div class="overflow-x-auto -mx-4 sm:mx-0">
+                <table class="table table-sm sm:table-md">
                     <thead>
                         <tr>
-                            <th>Round</th>
+                            <th class="hidden sm:table-cell">Round</th>
                             <th>Category</th>
                             <th>Difficulty</th>
                             <th>Target</th>
@@ -321,25 +331,25 @@
                     <tbody>
                         {% for target in targets %}
                         <tr>
-                            <td>
+                            <td class="hidden sm:table-cell">
                                 {% set ns = namespace(round_name='All Rounds') %}
                                 {% for round in rounds %}
                                     {% if round.id == target.round_id %}
                                         {% set ns.round_name = round.name %}
                                     {% endif %}
                                 {% endfor %}
-                                <span class="badge badge-outline badge-primary">{{ ns.round_name }}</span>
+                                <span class="badge badge-outline badge-primary badge-sm">{{ ns.round_name }}</span>
                             </td>
-                            <td><span class="badge badge-outline">{{ target.category }}</span></td>
+                            <td><span class="badge badge-outline badge-sm">{{ target.category }}</span></td>
                             <td>
                                 {% if target.difficulty == 'Easy' %}
-                                <span class="badge badge-success">{{ target.difficulty }}</span>
+                                <span class="badge badge-success badge-sm">{{ target.difficulty }}</span>
                                 {% elif target.difficulty == 'Medium' %}
-                                <span class="badge badge-warning">{{ target.difficulty }}</span>
+                                <span class="badge badge-warning badge-sm">{{ target.difficulty }}</span>
                                 {% elif target.difficulty == 'Hard' %}
-                                <span class="badge badge-error">{{ target.difficulty }}</span>
+                                <span class="badge badge-error badge-sm">{{ target.difficulty }}</span>
                                 {% else %}
-                                <span class="badge">{{ target.difficulty }}</span>
+                                <span class="badge badge-sm">{{ target.difficulty }}</span>
                                 {% endif %}
                             </td>
                             <td>{{ target.target_count }}</td>

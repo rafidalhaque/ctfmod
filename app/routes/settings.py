@@ -381,3 +381,55 @@ def revoke_api_key():
         return jsonify({'success': True, 'message': 'API key revoked successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/users')
+@login_required
+def users_list():
+    """List all registered users with their emails."""
+    supabase = get_supabase_client()
+    users = []
+    
+    if supabase:
+        try:
+            # Fetch users from Supabase auth - this requires admin/service key
+            # For now, we'll get a list of unique setters from challenges as a fallback
+            # and also any users we can get from auth if available
+            
+            # Get unique setters from challenges
+            challenges_response = supabase.table('challenges').select('setter').execute()
+            setters = set()
+            if challenges_response.data:
+                for challenge in challenges_response.data:
+                    if challenge.get('setter'):
+                        setters.add(challenge['setter'])
+            
+            # Try to get users from auth.users (requires service key)
+            try:
+                auth_users = supabase.auth.admin.list_users()
+                if auth_users:
+                    for user in auth_users:
+                        users.append({
+                            'id': user.id,
+                            'email': user.email,
+                            'created_at': str(user.created_at) if user.created_at else None,
+                            'last_sign_in_at': str(user.last_sign_in_at) if user.last_sign_in_at else None,
+                            'email_confirmed': user.email_confirmed_at is not None,
+                            'role': user.user_metadata.get('role', 'user') if user.user_metadata else 'user'
+                        })
+            except Exception:
+                # If we can't access auth.users, use setters as a fallback
+                for setter in sorted(setters):
+                    users.append({
+                        'id': None,
+                        'email': setter,
+                        'created_at': None,
+                        'last_sign_in_at': None,
+                        'email_confirmed': None,
+                        'role': 'setter'
+                    })
+                    
+        except Exception as e:
+            flash(f'Error fetching users: {str(e)}', 'error')
+    
+    return render_template('settings/users.html', users=users)

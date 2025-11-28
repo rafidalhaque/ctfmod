@@ -17,13 +17,22 @@
                 </svg>
                 Sync from GitHub
             </button>
-            <p class="text-xs text-base-content/50" id="lastSyncTime">
-                {% if settings.get('last_sync_time') %}
-                Last synced: <span id="lastSyncTimeValue">{{ settings.get('last_sync_time') }}</span>
-                {% else %}
-                Never synced
+            <div class="flex flex-col items-end gap-1">
+                <p class="text-xs text-base-content/50" id="lastSyncTime">
+                    {% if settings.get('last_sync_time') %}
+                    Last synced: <span id="lastSyncTimeValue">{{ settings.get('last_sync_time') }}</span>
+                    {% else %}
+                    Never synced
+                    {% endif %}
+                </p>
+                {% if settings.get('auto_sync_interval', '0') != '0' %}
+                <p class="text-xs flex items-center gap-1" id="autoSyncStatus">
+                    <span class="inline-block w-2 h-2 rounded-full bg-success animate-pulse" id="autoSyncIndicator"></span>
+                    <span>Auto-sync: every {{ settings.get('auto_sync_interval') }} min</span>
+                    <span class="text-base-content/50" id="nextSyncCountdown"></span>
+                </p>
                 {% endif %}
-            </p>
+            </div>
         </div>
     </div>
 
@@ -31,38 +40,38 @@
     {% set scheduled_rounds = rounds | selectattr('start_datetime') | list %}
     {% if scheduled_rounds %}
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <h2 class="card-title">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-lg sm:text-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Round Countdowns
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
                 {% for round in scheduled_rounds %}
                 <div class="card bg-base-200 shadow-md">
-                    <div class="card-body p-4">
-                        <h3 class="font-bold text-lg">{{ round.name }}</h3>
-                        <p class="text-sm text-base-content/70">{{ round.timezone or 'UTC' }}</p>
-                        <div class="countdown-timer flex gap-2 text-center mt-2" 
+                    <div class="card-body p-3 sm:p-4">
+                        <h3 class="font-bold text-base sm:text-lg">{{ round.name }}</h3>
+                        <p class="text-xs sm:text-sm text-base-content/70">{{ round.timezone or 'UTC' }}</p>
+                        <div class="countdown-timer flex flex-wrap gap-1 sm:gap-2 text-center mt-2 justify-center sm:justify-start" 
                              data-target="{{ round.start_datetime }}"
                              data-timezone="{{ round.timezone or 'UTC' }}"
                              id="countdown-{{ round.id }}">
-                            <div class="bg-neutral rounded-box p-2 min-w-[50px]">
-                                <span class="countdown font-mono text-2xl days">00</span>
-                                <div class="text-xs">days</div>
+                            <div class="bg-neutral rounded-box p-1 sm:p-2 min-w-[40px] sm:min-w-[50px]">
+                                <span class="countdown font-mono text-lg sm:text-2xl days">00</span>
+                                <div class="text-[10px] sm:text-xs">days</div>
                             </div>
-                            <div class="bg-neutral rounded-box p-2 min-w-[50px]">
-                                <span class="countdown font-mono text-2xl hours">00</span>
-                                <div class="text-xs">hours</div>
+                            <div class="bg-neutral rounded-box p-1 sm:p-2 min-w-[40px] sm:min-w-[50px]">
+                                <span class="countdown font-mono text-lg sm:text-2xl hours">00</span>
+                                <div class="text-[10px] sm:text-xs">hours</div>
                             </div>
-                            <div class="bg-neutral rounded-box p-2 min-w-[50px]">
-                                <span class="countdown font-mono text-2xl minutes">00</span>
-                                <div class="text-xs">min</div>
+                            <div class="bg-neutral rounded-box p-1 sm:p-2 min-w-[40px] sm:min-w-[50px]">
+                                <span class="countdown font-mono text-lg sm:text-2xl minutes">00</span>
+                                <div class="text-[10px] sm:text-xs">min</div>
                             </div>
-                            <div class="bg-neutral rounded-box p-2 min-w-[50px]">
-                                <span class="countdown font-mono text-2xl seconds">00</span>
-                                <div class="text-xs">sec</div>
+                            <div class="bg-neutral rounded-box p-1 sm:p-2 min-w-[40px] sm:min-w-[50px]">
+                                <span class="countdown font-mono text-lg sm:text-2xl seconds">00</span>
+                                <div class="text-[10px] sm:text-xs">sec</div>
                             </div>
                         </div>
                         <p class="text-xs text-base-content/50 mt-2 countdown-status"></p>
@@ -128,7 +137,7 @@
                         <thead>
                             <tr>
                                 <th>Category</th>
-                                <th>Total</th>
+                                <th>Target</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
                                 <th>Declined</th>
@@ -137,18 +146,25 @@
                         </thead>
                         <tbody>
                             {% for category, data in stats.by_category.items() %}
+                            {% set category_target = stats.targets_by_category.get(category, 0) %}
                             <tr>
                                 <td>
                                     <span class="badge badge-outline">{{ category }}</span>
                                 </td>
-                                <td>{{ data.total }}</td>
+                                <td>{{ category_target if category_target > 0 else '-' }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
-                                    <progress class="progress progress-success w-20" 
-                                              value="{{ data.accepted }}" 
-                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                    {% set max_val = category_target if category_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    <div class="flex items-center gap-2">
+                                        <progress class="progress progress-success w-20" 
+                                                  value="{{ data.accepted }}" 
+                                                  max="{{ max_val }}"></progress>
+                                        {% if category_target > 0 %}
+                                        <span class="text-xs">{{ data.accepted }}/{{ category_target }}</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
@@ -171,7 +187,7 @@
                         <thead>
                             <tr>
                                 <th>Difficulty</th>
-                                <th>Total</th>
+                                <th>Target</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
                                 <th>Declined</th>
@@ -180,6 +196,7 @@
                         </thead>
                         <tbody>
                             {% for difficulty, data in stats.by_difficulty.items() %}
+                            {% set difficulty_target = stats.targets_by_difficulty.get(difficulty, 0) %}
                             <tr>
                                 <td>
                                     {% if difficulty == 'Easy' %}
@@ -192,14 +209,20 @@
                                     <span class="badge">{{ difficulty }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ data.total }}</td>
+                                <td>{{ difficulty_target if difficulty_target > 0 else '-' }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
-                                    <progress class="progress progress-success w-20" 
-                                              value="{{ data.accepted }}" 
-                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                    {% set max_val = difficulty_target if difficulty_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    <div class="flex items-center gap-2">
+                                        <progress class="progress progress-success w-20" 
+                                                  value="{{ data.accepted }}" 
+                                                  max="{{ max_val }}"></progress>
+                                        {% if difficulty_target > 0 %}
+                                        <span class="text-xs">{{ data.accepted }}/{{ difficulty_target }}</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
@@ -495,9 +518,19 @@ setInterval(updateCountdowns, 1000);
 // Auto-sync functionality
 const autoSyncInterval = {{ settings.get('auto_sync_interval', '0') | int }};
 let autoSyncTimer = null;
+let nextSyncTime = null;
+let countdownInterval = null;
 
 async function autoSyncGitHub() {
     console.log('Auto-sync triggered at', new Date().toLocaleTimeString());
+    
+    // Update indicator to show syncing
+    const indicator = document.getElementById('autoSyncIndicator');
+    if (indicator) {
+        indicator.classList.remove('bg-success');
+        indicator.classList.add('bg-warning');
+    }
+    
     try {
         const response = await fetch('/api/sync-github', {
             method: 'POST',
@@ -517,20 +550,34 @@ async function autoSyncGitHub() {
             }
             // Show a subtle notification instead of reloading
             showAutoSyncNotification(data.message);
+            
+            // Reset the countdown for next sync
+            if (autoSyncInterval > 0) {
+                nextSyncTime = Date.now() + (autoSyncInterval * 60 * 1000);
+            }
         } else {
             console.error('Auto-sync error:', data.error);
+            showAutoSyncNotification('Auto-sync failed: ' + (data.error || 'Unknown error'), 'error');
         }
     } catch (error) {
         console.error('Auto-sync failed:', error.message);
+        showAutoSyncNotification('Auto-sync failed: ' + error.message, 'error');
+    } finally {
+        // Restore indicator
+        if (indicator) {
+            indicator.classList.remove('bg-warning');
+            indicator.classList.add('bg-success');
+        }
     }
 }
 
-function showAutoSyncNotification(message) {
+function showAutoSyncNotification(message, type = 'info') {
     // Create toast notification
     const toast = document.createElement('div');
     toast.className = 'toast toast-end z-50';
+    const alertClass = type === 'error' ? 'alert-error' : 'alert-info';
     toast.innerHTML = `
-        <div class="alert alert-info">
+        <div class="alert ${alertClass}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
@@ -545,10 +592,30 @@ function showAutoSyncNotification(message) {
     }, 5000);
 }
 
+function updateAutoSyncCountdown() {
+    const countdownEl = document.getElementById('nextSyncCountdown');
+    if (!countdownEl || !nextSyncTime) return;
+    
+    const remaining = Math.max(0, Math.ceil((nextSyncTime - Date.now()) / 1000));
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    
+    countdownEl.textContent = `(next in ${minutes}:${seconds.toString().padStart(2, '0')})`;
+}
+
 // Start auto-sync if interval is set
 if (autoSyncInterval > 0) {
     console.log('Auto-sync enabled: every', autoSyncInterval, 'minutes');
+    
+    // Set initial next sync time
+    nextSyncTime = Date.now() + (autoSyncInterval * 60 * 1000);
+    
+    // Start the auto-sync timer
     autoSyncTimer = setInterval(autoSyncGitHub, autoSyncInterval * 60 * 1000);
+    
+    // Start countdown display update
+    countdownInterval = setInterval(updateAutoSyncCountdown, 1000);
+    updateAutoSyncCountdown();
 }
 </script>
 {% endblock %}

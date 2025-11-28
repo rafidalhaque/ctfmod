@@ -14,14 +14,14 @@
 
     <!-- Filters -->
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <h2 class="card-title text-lg">Filters</h2>
-            <form method="GET" action="{{ url_for('challenges.list_challenges') }}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div class="card-body p-4 sm:p-6">
+            <h2 class="card-title text-base sm:text-lg">Filters</h2>
+            <form method="GET" action="{{ url_for('challenges.list_challenges') }}" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                 <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Category</span>
+                    <label class="label py-1">
+                        <span class="label-text text-xs sm:text-sm">Category</span>
                     </label>
-                    <select name="category" class="select select-bordered w-full">
+                    <select name="category" class="select select-bordered select-sm sm:select-md w-full">
                         <option value="">All Categories</option>
                         {% for cat in categories %}
                         <option value="{{ cat }}" {% if current_filters.category == cat %}selected{% endif %}>{{ cat }}</option>
@@ -30,10 +30,10 @@
                 </div>
                 
                 <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Difficulty</span>
+                    <label class="label py-1">
+                        <span class="label-text text-xs sm:text-sm">Difficulty</span>
                     </label>
-                    <select name="difficulty" class="select select-bordered w-full">
+                    <select name="difficulty" class="select select-bordered select-sm sm:select-md w-full">
                         <option value="">All Difficulties</option>
                         {% for diff in difficulties %}
                         <option value="{{ diff }}" {% if current_filters.difficulty == diff %}selected{% endif %}>{{ diff }}</option>
@@ -42,10 +42,10 @@
                 </div>
                 
                 <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Status</span>
+                    <label class="label py-1">
+                        <span class="label-text text-xs sm:text-sm">Status</span>
                     </label>
-                    <select name="status" class="select select-bordered w-full">
+                    <select name="status" class="select select-bordered select-sm sm:select-md w-full">
                         <option value="">All Statuses</option>
                         <option value="pending" {% if current_filters.status == 'pending' %}selected{% endif %}>Pending</option>
                         <option value="accepted" {% if current_filters.status == 'accepted' %}selected{% endif %}>Accepted</option>
@@ -54,10 +54,10 @@
                 </div>
                 
                 <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Setter</span>
+                    <label class="label py-1">
+                        <span class="label-text text-xs sm:text-sm">Setter</span>
                     </label>
-                    <select name="setter" class="select select-bordered w-full">
+                    <select name="setter" class="select select-bordered select-sm sm:select-md w-full">
                         <option value="">All Setters</option>
                         {% for setter in setters %}
                         <option value="{{ setter }}" {% if current_filters.setter == setter %}selected{% endif %}>{{ setter }}</option>
@@ -65,13 +65,13 @@
                     </select>
                 </div>
                 
-                <div class="form-control justify-end">
-                    <label class="label">
+                <div class="form-control justify-end col-span-2 sm:col-span-1">
+                    <label class="label py-1 hidden sm:flex">
                         <span class="label-text">&nbsp;</span>
                     </label>
                     <div class="flex gap-2">
-                        <button type="submit" class="btn btn-primary flex-1">Filter</button>
-                        <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-ghost">Clear</a>
+                        <button type="submit" class="btn btn-primary btn-sm sm:btn-md flex-1">Filter</button>
+                        <a href="{{ url_for('challenges.list_challenges') }}" class="btn btn-ghost btn-sm sm:btn-md">Clear</a>
                     </div>
                 </div>
             </form>
@@ -80,19 +80,19 @@
 
     <!-- Challenges Table -->
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <div class="overflow-x-auto">
-                <table class="table">
+        <div class="card-body p-4 sm:p-6">
+            <div class="overflow-x-auto -mx-4 sm:mx-0">
+                <table class="table table-sm sm:table-md">
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Category</th>
+                            <th class="hidden sm:table-cell">Category</th>
                             <th>Difficulty</th>
-                            <th>Points</th>
-                            <th>Setter</th>
+                            <th class="hidden lg:table-cell">Points</th>
+                            <th class="hidden md:table-cell">Setter</th>
                             <th>Status</th>
-                            <th>PR</th>
-                            <th>CTFd</th>
+                            <th class="hidden lg:table-cell">PR</th>
+                            <th class="hidden xl:table-cell">CTFd</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -101,43 +101,44 @@
                         <tr class="hover">
                             <td>
                                 <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
-                                   class="link link-hover font-medium">
+                                   class="link link-hover font-medium text-sm sm:text-base">
                                     {{ challenge.name }}
                                 </a>
+                                <div class="text-xs text-base-content/50 sm:hidden">{{ challenge.category }}</div>
                             </td>
-                            <td><span class="badge badge-outline">{{ challenge.category }}</span></td>
+                            <td class="hidden sm:table-cell"><span class="badge badge-outline badge-sm">{{ challenge.category }}</span></td>
                             <td>
                                 {% if challenge.difficulty == 'Easy' %}
-                                <span class="badge badge-success">{{ challenge.difficulty }}</span>
+                                <span class="badge badge-success badge-sm">{{ challenge.difficulty }}</span>
                                 {% elif challenge.difficulty == 'Medium' %}
-                                <span class="badge badge-warning">{{ challenge.difficulty }}</span>
+                                <span class="badge badge-warning badge-sm">{{ challenge.difficulty }}</span>
                                 {% elif challenge.difficulty == 'Hard' %}
-                                <span class="badge badge-error">{{ challenge.difficulty }}</span>
+                                <span class="badge badge-error badge-sm">{{ challenge.difficulty }}</span>
                                 {% else %}
-                                <span class="badge">{{ challenge.difficulty or 'N/A' }}</span>
+                                <span class="badge badge-sm">{{ challenge.difficulty or 'N/A' }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ challenge.points or 100 }}</td>
-                            <td>{{ challenge.setter or 'Unknown' }}</td>
+                            <td class="hidden lg:table-cell">{{ challenge.points or 100 }}</td>
+                            <td class="hidden md:table-cell text-sm">{{ challenge.setter or 'Unknown' }}</td>
                             <td>
                                 {% if challenge.status == 'accepted' %}
-                                <span class="badge badge-success">Accepted</span>
+                                <span class="badge badge-success badge-sm">Accepted</span>
                                 {% elif challenge.status == 'pending' %}
-                                <span class="badge badge-warning">Pending</span>
+                                <span class="badge badge-warning badge-sm">Pending</span>
                                 {% elif challenge.status == 'declined' %}
-                                <span class="badge badge-error">Declined</span>
+                                <span class="badge badge-error badge-sm">Declined</span>
                                 {% else %}
-                                <span class="badge">{{ challenge.status }}</span>
+                                <span class="badge badge-sm">{{ challenge.status }}</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="hidden lg:table-cell">
                                 {% if challenge.pr_number %}
-                                <span class="badge badge-info">#{{ challenge.pr_number }}</span>
+                                <span class="badge badge-info badge-sm">#{{ challenge.pr_number }}</span>
                                 {% else %}
                                 <span class="text-base-content/50">-</span>
                                 {% endif %}
                             </td>
-                            <td>
+                            <td class="hidden xl:table-cell">
                                 {% if challenge.pushed_to_ctfd %}
                                 <span class="badge badge-success badge-sm">✓</span>
                                 {% else %}
@@ -145,14 +146,14 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <div class="flex gap-1">
+                                <div class="flex gap-1 flex-wrap">
                                     <a href="{{ url_for('challenges.view_challenge', challenge_id=challenge.id) }}" 
                                        class="btn btn-xs btn-ghost">
                                         View
                                     </a>
                                     {% if challenge.status == 'pending' %}
                                     <button onclick="approveChallenge({{ challenge.id }})" 
-                                            class="btn btn-xs btn-success btn-outline">
+                                            class="btn btn-xs btn-success btn-outline hidden sm:inline-flex">
                                         Approve
                                     </button>
                                     {% endif %}
