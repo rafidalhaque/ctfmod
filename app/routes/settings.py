@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
+import secrets
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -200,8 +201,50 @@ def create_round():
             'description': data.get('description', '')
         }
         
+        # Add schedule fields if provided
+        if data.get('start_datetime'):
+            round_data['start_datetime'] = data.get('start_datetime')
+        if data.get('timezone'):
+            round_data['timezone'] = data.get('timezone')
+        
         response = supabase.table('rounds').insert(round_data).execute()
         return jsonify({'success': True, 'data': response.data[0] if response.data else None})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/rounds/<int:round_id>', methods=['PUT'])
+@login_required
+def update_round(round_id):
+    """Update an existing round."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        name = data.get('name')
+        
+        if not name:
+            return jsonify({'error': 'Round name is required'}), 400
+        
+        # First check if the round exists
+        existing = supabase.table('rounds').select('id').eq('id', round_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Round not found'}), 404
+        
+        update_data = {
+            'name': name,
+            'description': data.get('description', '')
+        }
+        
+        # Add schedule fields
+        update_data['start_datetime'] = data.get('start_datetime') if data.get('start_datetime') else None
+        update_data['timezone'] = data.get('timezone', 'UTC')
+        
+        supabase.table('rounds').update(update_data).eq('id', round_id).execute()
+        return jsonify({'success': True, 'message': 'Round updated successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -221,5 +264,47 @@ def delete_round(round_id):
         # Then delete the round
         supabase.table('rounds').delete().eq('id', round_id).execute()
         return jsonify({'success': True, 'message': 'Round deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/api-key/generate', methods=['POST'])
+@login_required
+def generate_api_key():
+    """Generate a new stats API key."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Generate a secure random API key
+        api_key = 'ctfm_' + secrets.token_urlsafe(32)
+        
+        # Save to settings
+        supabase.table('settings').upsert({
+            'key': 'stats_api_key',
+            'value': api_key
+        }, on_conflict='key').execute()
+        
+        return jsonify({'success': True, 'api_key': api_key})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/api-key/revoke', methods=['POST'])
+@login_required
+def revoke_api_key():
+    """Revoke the current stats API key."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Delete the API key from settings
+        supabase.table('settings').delete().eq('key', 'stats_api_key').execute()
+        
+        return jsonify({'success': True, 'message': 'API key revoked successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
