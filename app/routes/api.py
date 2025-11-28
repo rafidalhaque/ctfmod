@@ -4,6 +4,7 @@ from app.supabase_client import get_supabase_client
 import requests
 import yaml
 from yaml import YAMLError
+import hmac
 
 api_bp = Blueprint('api', __name__)
 
@@ -467,7 +468,6 @@ def validate_api_key(api_key):
         if response.data and response.data[0].get('value'):
             stored_key = response.data[0]['value']
             # Use constant-time comparison to prevent timing attacks
-            import hmac
             return hmac.compare_digest(api_key, stored_key)
     except Exception:
         pass

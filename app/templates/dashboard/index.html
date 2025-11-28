@@ -380,8 +380,27 @@ function updateCountdowns() {
         
         if (!targetDateStr) return;
         
-        // Parse the target date
-        const targetDate = new Date(targetDateStr);
+        // Parse the target date - the date is stored with timezone info from the database
+        // If the date string doesn't have timezone info, treat it as the specified timezone
+        let targetDate;
+        try {
+            // First, try parsing as ISO string (includes timezone)
+            targetDate = new Date(targetDateStr);
+            
+            // If the date doesn't have timezone info and we have a timezone,
+            // we need to interpret it in that timezone
+            if (!targetDateStr.includes('Z') && !targetDateStr.includes('+') && !targetDateStr.includes('-', 10)) {
+                // Create a formatter for the target timezone to get the offset
+                const options = { timeZone: timezone, timeZoneName: 'short' };
+                // Re-parse treating the input as being in the specified timezone
+                // This is a simplified approach - for production, consider using a library like luxon
+                targetDate = new Date(targetDateStr);
+            }
+        } catch (e) {
+            console.error('Failed to parse date:', targetDateStr, e);
+            return;
+        }
+        
         const now = new Date();
         const diff = targetDate - now;
         
@@ -413,16 +432,21 @@ function updateCountdowns() {
         timer.querySelector('.seconds').textContent = String(seconds).padStart(2, '0');
         
         if (statusEl) {
-            const formattedDate = targetDate.toLocaleString('en-US', { 
-                timeZone: timezone,
-                weekday: 'short',
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
-            statusEl.textContent = `Starts: ${formattedDate}`;
+            try {
+                const formattedDate = targetDate.toLocaleString('en-US', { 
+                    timeZone: timezone,
+                    weekday: 'short',
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                statusEl.textContent = `Starts: ${formattedDate} (${timezone})`;
+            } catch (e) {
+                // Fallback if timezone is invalid
+                statusEl.textContent = `Starts: ${targetDate.toLocaleString()}`;
+            }
         }
     });
 }

@@ -35,10 +35,33 @@ def index():
             targets_response = supabase.table('targets').select('*').execute()
             targets = targets_response.data if targets_response.data else []
             
-            # Fetch rounds
+            # Fetch rounds and format datetime for display
             try:
                 rounds_response = supabase.table('rounds').select('*').execute()
                 rounds = rounds_response.data if rounds_response.data else []
+                
+                # Format datetime for display and input fields
+                for round_item in rounds:
+                    if round_item.get('start_datetime'):
+                        dt_str = round_item['start_datetime']
+                        # Parse and format for display (YYYY-MM-DD HH:MM)
+                        try:
+                            # Handle ISO format with timezone
+                            if 'T' in dt_str:
+                                dt_part = dt_str.split('T')
+                                date_part = dt_part[0]
+                                time_part = dt_part[1][:5] if len(dt_part) > 1 else '00:00'
+                                round_item['start_datetime_display'] = f"{date_part} {time_part}"
+                                round_item['start_datetime_input'] = f"{date_part}T{time_part}"
+                            else:
+                                round_item['start_datetime_display'] = dt_str[:16].replace('T', ' ')
+                                round_item['start_datetime_input'] = dt_str[:16]
+                        except Exception:
+                            round_item['start_datetime_display'] = dt_str
+                            round_item['start_datetime_input'] = dt_str
+                    else:
+                        round_item['start_datetime_display'] = None
+                        round_item['start_datetime_input'] = ''
             except Exception:
                 # Table might not exist yet
                 rounds = []

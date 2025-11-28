@@ -264,14 +264,14 @@
                         <tr>
                             <td><span class="badge badge-primary">{{ round.name }}</span></td>
                             <td>{{ round.description or '-' }}</td>
-                            <td>{{ round.start_datetime[:16].replace('T', ' ') if round.start_datetime else '-' }}</td>
+                            <td>{{ round.start_datetime_display or '-' }}</td>
                             <td>{{ round.timezone or 'UTC' }}</td>
                             <td class="flex gap-1">
                                 <button class="btn btn-xs btn-primary btn-ghost edit-round-btn"
                                         data-round-id="{{ round.id }}"
                                         data-name="{{ round.name }}"
                                         data-description="{{ round.description or '' }}"
-                                        data-start-datetime="{{ round.start_datetime[:16] if round.start_datetime else '' }}"
+                                        data-start-datetime="{{ round.start_datetime_input }}"
                                         data-timezone="{{ round.timezone or 'UTC' }}">
                                     Edit
                                 </button>
@@ -770,14 +770,30 @@ function copyApiKey() {
         return;
     }
     
-    navigator.clipboard.writeText(apiKey).then(() => {
-        alert('API key copied to clipboard!');
-    }).catch(err => {
-        // Fallback for older browsers
-        apiKeyInput.select();
-        document.execCommand('copy');
-        alert('API key copied to clipboard!');
-    });
+    // Modern clipboard API with fallback
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(apiKey).then(() => {
+            alert('API key copied to clipboard!');
+        }).catch(err => {
+            console.error('Clipboard write failed:', err);
+            alert('Failed to copy API key. Please select and copy manually.');
+        });
+    } else {
+        // Fallback: create temporary textarea and use select/copy
+        const textArea = document.createElement('textarea');
+        textArea.value = apiKey;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('API key copied to clipboard!');
+        } catch (err) {
+            alert('Failed to copy API key. Please select and copy manually.');
+        }
+        document.body.removeChild(textArea);
+    }
 }
 
 // Site Settings Form
