@@ -26,6 +26,7 @@ def index():
     challenges = []
     targets = []
     rounds = []
+    settings = {}
     
     if supabase:
         try:
@@ -39,6 +40,15 @@ def index():
                 rounds = rounds_response.data if rounds_response.data else []
             except Exception:
                 rounds = []
+            
+            # Fetch settings (for auto_sync_interval)
+            try:
+                settings_response = supabase.table('settings').select('*').execute()
+                if settings_response.data:
+                    for setting in settings_response.data:
+                        settings[setting['key']] = setting['value']
+            except Exception:
+                settings = {}
             
             # Calculate statistics
             stats['total_challenges'] = len(challenges)
@@ -105,7 +115,8 @@ def index():
                          stats=stats, 
                          challenges=challenges,
                          targets=targets,
-                         rounds=rounds)
+                         rounds=rounds,
+                         settings=settings)
 
 
 @dashboard_bp.route('/api/stats')

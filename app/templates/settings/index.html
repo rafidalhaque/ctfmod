@@ -86,6 +86,23 @@
                         </label>
                     </div>
                     
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Auto-Sync Interval (minutes)</span>
+                        </label>
+                        <select name="auto_sync_interval" class="select select-bordered w-full">
+                            <option value="0" {{ 'selected' if settings.get('auto_sync_interval', '0') == '0' }}>Disabled</option>
+                            <option value="5" {{ 'selected' if settings.get('auto_sync_interval') == '5' }}>Every 5 minutes</option>
+                            <option value="10" {{ 'selected' if settings.get('auto_sync_interval') == '10' }}>Every 10 minutes</option>
+                            <option value="15" {{ 'selected' if settings.get('auto_sync_interval') == '15' }}>Every 15 minutes</option>
+                            <option value="30" {{ 'selected' if settings.get('auto_sync_interval') == '30' }}>Every 30 minutes</option>
+                            <option value="60" {{ 'selected' if settings.get('auto_sync_interval') == '60' }}>Every hour</option>
+                        </select>
+                        <label class="label">
+                            <span class="label-text-alt">Automatically sync challenges from GitHub at specified interval</span>
+                        </label>
+                    </div>
+                    
                     <button type="submit" class="btn btn-primary">Save GitHub Settings</button>
                 </form>
             </div>
@@ -118,6 +135,53 @@
                     
                     <button type="submit" class="btn btn-primary">Save CTFd Settings</button>
                 </form>
+            </div>
+        </div>
+
+        <!-- Stats API Settings -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">Stats API</h2>
+                <p class="text-base-content/70 text-sm mb-4">Access detailed statistics via public API</p>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">API Key</span>
+                    </label>
+                    <div class="join w-full">
+                        <input type="text" id="statsApiKey" 
+                               value="{{ settings.get('stats_api_key', '') }}"
+                               class="input input-bordered join-item flex-1" readonly />
+                        <button type="button" onclick="copyApiKey()" class="btn btn-secondary join-item">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex gap-2 mt-4">
+                    <button type="button" onclick="generateApiKey()" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Generate New Key
+                    </button>
+                    <button type="button" onclick="revokeApiKey()" class="btn btn-error btn-outline">
+                        Revoke Key
+                    </button>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="text-sm">
+                    <p class="font-semibold mb-2">API Endpoint:</p>
+                    <code class="bg-base-200 p-2 rounded block">/api/v1/stats</code>
+                    <p class="mt-2 text-base-content/70">
+                        Use the API key in the <code>X-API-Key</code> header to authenticate requests.
+                    </p>
+                </div>
             </div>
         </div>
 
@@ -182,7 +246,7 @@
                     Add Round
                 </button>
             </div>
-            <p class="text-base-content/70 text-sm mb-4">Manage CTF rounds (e.g., Preliminary, Final)</p>
+            <p class="text-base-content/70 text-sm mb-4">Manage CTF rounds (e.g., Preliminary, Final) with schedule and countdown</p>
             
             <div class="overflow-x-auto">
                 <table class="table">
@@ -190,6 +254,8 @@
                         <tr>
                             <th>Name</th>
                             <th>Description</th>
+                            <th>Schedule</th>
+                            <th>Timezone</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -198,7 +264,17 @@
                         <tr>
                             <td><span class="badge badge-primary">{{ round.name }}</span></td>
                             <td>{{ round.description or '-' }}</td>
-                            <td>
+                            <td>{{ round.start_datetime_display or '-' }}</td>
+                            <td>{{ round.timezone or 'UTC' }}</td>
+                            <td class="flex gap-1">
+                                <button class="btn btn-xs btn-primary btn-ghost edit-round-btn"
+                                        data-round-id="{{ round.id }}"
+                                        data-name="{{ round.name }}"
+                                        data-description="{{ round.description or '' }}"
+                                        data-start-datetime="{{ round.start_datetime_input }}"
+                                        data-timezone="{{ round.timezone or 'UTC' }}">
+                                    Edit
+                                </button>
                                 <button onclick="deleteRound({{ round.id }})" class="btn btn-xs btn-error btn-ghost">
                                     Delete
                                 </button>
@@ -206,7 +282,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="3" class="text-center text-base-content/50">
+                            <td colspan="5" class="text-center text-base-content/50">
                                 No rounds defined. Click "Add Round" to create one.
                             </td>
                         </tr>
@@ -316,9 +392,95 @@
                           class="textarea textarea-bordered w-full"></textarea>
             </div>
             
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Start Date & Time (optional)</span>
+                </label>
+                <input type="datetime-local" name="start_datetime" 
+                       class="input input-bordered w-full" />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Timezone</span>
+                </label>
+                <select name="timezone" class="select select-bordered w-full">
+                    <option value="UTC">UTC</option>
+                    <option value="Asia/Dhaka">Asia/Dhaka (GMT+6)</option>
+                    <option value="Asia/Kolkata">Asia/Kolkata (GMT+5:30)</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                    <option value="Europe/London">Europe/London (GMT)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                </select>
+            </div>
+            
             <div class="modal-action">
                 <button type="button" onclick="closeAddRoundModal()" class="btn btn-ghost">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Round</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Edit Round Modal -->
+<dialog id="editRoundModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Edit CTF Round</h3>
+        <form id="editRoundForm" class="space-y-4 mt-4">
+            <input type="hidden" name="round_id" id="editRoundId" />
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Round Name</span>
+                </label>
+                <input type="text" name="name" id="editRoundName" placeholder="e.g., Preliminary, Final" 
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Description (optional)</span>
+                </label>
+                <textarea name="description" id="editRoundDescription" placeholder="Round description..." 
+                          class="textarea textarea-bordered w-full"></textarea>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Start Date & Time (optional)</span>
+                </label>
+                <input type="datetime-local" name="start_datetime" id="editRoundStartDatetime"
+                       class="input input-bordered w-full" />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Timezone</span>
+                </label>
+                <select name="timezone" id="editRoundTimezone" class="select select-bordered w-full">
+                    <option value="UTC">UTC</option>
+                    <option value="Asia/Dhaka">Asia/Dhaka (GMT+6)</option>
+                    <option value="Asia/Kolkata">Asia/Kolkata (GMT+5:30)</option>
+                    <option value="America/New_York">America/New_York (EST)</option>
+                    <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                    <option value="Europe/London">Europe/London (GMT)</option>
+                    <option value="Europe/Paris">Europe/Paris (CET)</option>
+                    <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                    <option value="Asia/Singapore">Asia/Singapore (SGT)</option>
+                    <option value="Australia/Sydney">Australia/Sydney (AEST)</option>
+                </select>
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" onclick="closeEditRoundModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Round</button>
             </div>
         </form>
     </div>
@@ -546,6 +708,94 @@ function updateTargetDifficultySelect() {
     }
 }
 
+// API Key Management Functions
+async function generateApiKey() {
+    if (!confirm('This will generate a new API key and invalidate the old one. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/settings/api-key/generate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('statsApiKey').value = result.api_key;
+            alert('New API key generated successfully!');
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error generating API key: ' + error.message);
+    }
+}
+
+async function revokeApiKey() {
+    if (!confirm('This will revoke the current API key. API access will be disabled until a new key is generated. Continue?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/settings/api-key/revoke', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('statsApiKey').value = '';
+            alert('API key revoked successfully!');
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error revoking API key: ' + error.message);
+    }
+}
+
+function copyApiKey() {
+    const apiKeyInput = document.getElementById('statsApiKey');
+    const apiKey = apiKeyInput.value;
+    
+    if (!apiKey) {
+        alert('No API key to copy. Generate one first.');
+        return;
+    }
+    
+    // Modern clipboard API with fallback
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(apiKey).then(() => {
+            alert('API key copied to clipboard!');
+        }).catch(err => {
+            console.error('Clipboard write failed:', err);
+            alert('Failed to copy API key. Please select and copy manually.');
+        });
+    } else {
+        // Fallback: create temporary textarea and use select/copy
+        const textArea = document.createElement('textarea');
+        textArea.value = apiKey;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            alert('API key copied to clipboard!');
+        } catch (err) {
+            alert('Failed to copy API key. Please select and copy manually.');
+        }
+        document.body.removeChild(textArea);
+    }
+}
+
 // Site Settings Form
 document.getElementById('siteSettingsForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -652,6 +902,61 @@ async function deleteRound(id) {
         alert('Error deleting round: ' + error.message);
     }
 }
+
+// Edit Round Modal Functions
+function showEditRoundModal(roundId, name, description, startDatetime, timezone) {
+    document.getElementById('editRoundId').value = roundId;
+    document.getElementById('editRoundName').value = name;
+    document.getElementById('editRoundDescription').value = description;
+    document.getElementById('editRoundStartDatetime').value = startDatetime || '';
+    document.getElementById('editRoundTimezone').value = timezone || 'UTC';
+    document.getElementById('editRoundModal').showModal();
+}
+
+function closeEditRoundModal() {
+    document.getElementById('editRoundModal').close();
+}
+
+// Attach click handlers to edit round buttons
+document.querySelectorAll('.edit-round-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const roundId = this.dataset.roundId;
+        const name = this.dataset.name;
+        const description = this.dataset.description;
+        const startDatetime = this.dataset.startDatetime;
+        const timezone = this.dataset.timezone;
+        showEditRoundModal(roundId, name, description, startDatetime, timezone);
+    });
+});
+
+document.getElementById('editRoundForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    const roundId = data.round_id;
+    delete data.round_id;
+    
+    try {
+        const response = await fetch(`/settings/rounds/${roundId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeEditRoundModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error updating round: ' + error.message);
+    }
+});
 
 // Target Modal Functions
 function showAddTargetModal() {

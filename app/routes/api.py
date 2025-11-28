@@ -4,6 +4,7 @@ from app.supabase_client import get_supabase_client
 import requests
 import yaml
 from yaml import YAMLError
+import hmac
 
 api_bp = Blueprint('api', __name__)
 
@@ -449,5 +450,165 @@ def delete_round(round_id):
     try:
         supabase.table('rounds').delete().eq('id', round_id).execute()
         return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+def validate_api_key(api_key):
+    """Validate API key against stored key in settings."""
+    if not api_key:
+        return False
+    
+    supabase = get_supabase_client()
+    if not supabase:
+        return False
+    
+    try:
+        response = supabase.table('settings').select('value').eq('key', 'stats_api_key').execute()
+        if response.data and response.data[0].get('value'):
+            stored_key = response.data[0]['value']
+            # Use constant-time comparison to prevent timing attacks
+            return hmac.compare_digest(api_key, stored_key)
+    except Exception:
+        pass
+    
+    return False
+
+
+@api_bp.route('/v1/stats', methods=['GET'])
+def get_public_stats():
+    """Public API endpoint to get detailed statistics.
+    
+    Requires API key authentication via X-API-Key header.
+    
+    Returns detailed stats including:
+    - Total, accepted, pending, and declined challenges
+    - Stats by category
+    - Stats by difficulty
+    - Stats by round
+    - Target progress
+    - Round schedules
+    """
+    # Validate API key
+    api_key = request.headers.get('X-API-Key')
+    
+    if not validate_api_key(api_key):
+        return jsonify({'error': 'Invalid or missing API key'}), 401
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Fetch all challenges
+        challenges_response = supabase.table('challenges').select('*').execute()
+        challenges = challenges_response.data if challenges_response.data else []
+        
+        # Fetch rounds
+        rounds_response = supabase.table('rounds').select('*').execute()
+        rounds = rounds_response.data if rounds_response.data else []
+        
+        # Fetch targets
+        targets_response = supabase.table('targets').select('*').execute()
+        targets = targets_response.data if targets_response.data else []
+        
+        # Build stats
+        stats = {
+            'total_challenges': len(challenges),
+            'accepted_challenges': 0,
+            'pending_challenges': 0,
+            'declined_challenges': 0,
+            'by_category': {},
+            'by_difficulty': {},
+            'by_round': {},
+            'by_setter': {},
+            'targets': [],
+            'rounds': []
+        }
+        
+        # Create rounds lookup
+        rounds_lookup = {r['id']: r for r in rounds}
+        
+        for challenge in challenges:
+            status = challenge.get('status', 'pending')
+            category = challenge.get('category', 'Unknown')
+            difficulty = challenge.get('difficulty', 'Unknown')
+            round_id = challenge.get('round_id')
+            setter = challenge.get('setter', 'Unknown')
+            
+            # Count by status
+            if status == 'accepted':
+                stats['accepted_challenges'] += 1
+            elif status == 'pending':
+                stats['pending_challenges'] += 1
+            elif status == 'declined':
+                stats['declined_challenges'] += 1
+            
+            # Count by category
+            if category not in stats['by_category']:
+                stats['by_category'][category] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
+            stats['by_category'][category]['total'] += 1
+            stats['by_category'][category][status] = stats['by_category'][category].get(status, 0) + 1
+            
+            # Count by difficulty
+            if difficulty not in stats['by_difficulty']:
+                stats['by_difficulty'][difficulty] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
+            stats['by_difficulty'][difficulty]['total'] += 1
+            stats['by_difficulty'][difficulty][status] = stats['by_difficulty'][difficulty].get(status, 0) + 1
+            
+            # Count by round
+            round_name = rounds_lookup.get(round_id, {}).get('name', 'Unassigned') if round_id else 'Unassigned'
+            if round_name not in stats['by_round']:
+                stats['by_round'][round_name] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
+            stats['by_round'][round_name]['total'] += 1
+            stats['by_round'][round_name][status] = stats['by_round'][round_name].get(status, 0) + 1
+            
+            # Count by setter
+            if setter not in stats['by_setter']:
+                stats['by_setter'][setter] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
+            stats['by_setter'][setter]['total'] += 1
+            stats['by_setter'][setter][status] = stats['by_setter'][setter].get(status, 0) + 1
+        
+        # Build targets info with progress
+        for target in targets:
+            round_name = rounds_lookup.get(target.get('round_id'), {}).get('name', 'All Rounds') if target.get('round_id') else 'All Rounds'
+            
+            # Count accepted challenges for this target
+            accepted_count = sum(
+                1 for c in challenges
+                if c.get('category') == target.get('category')
+                and c.get('difficulty') == target.get('difficulty')
+                and (
+                    (target.get('round_id') is None) or 
+                    (c.get('round_id') == target.get('round_id'))
+                )
+                and c.get('status') == 'accepted'
+            )
+            
+            stats['targets'].append({
+                'category': target.get('category'),
+                'difficulty': target.get('difficulty'),
+                'round': round_name,
+                'target_count': target.get('target_count', 0),
+                'accepted_count': accepted_count,
+                'progress_percentage': round((accepted_count / target.get('target_count', 1)) * 100, 2) if target.get('target_count', 0) > 0 else 0
+            })
+        
+        # Build rounds info with schedule
+        for round_item in rounds:
+            stats['rounds'].append({
+                'id': round_item.get('id'),
+                'name': round_item.get('name'),
+                'description': round_item.get('description'),
+                'start_datetime': round_item.get('start_datetime'),
+                'timezone': round_item.get('timezone', 'UTC')
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
