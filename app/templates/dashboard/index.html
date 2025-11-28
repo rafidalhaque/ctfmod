@@ -532,7 +532,7 @@ async function autoSyncGitHub() {
             // Update the last sync time display
             const lastSyncTimeEl = document.getElementById('lastSyncTime');
             if (lastSyncTimeEl && data.last_sync_time) {
-                lastSyncTimeEl.innerHTML = formatLastSyncTime(data.last_sync_time);
+                lastSyncTimeEl.textContent = formatLastSyncTime(data.last_sync_time);
             }
             // Show a subtle notification instead of reloading
             showAutoSyncNotification(data.message);

@@ -414,7 +414,13 @@ async function pushToCTFd(id) {
 async function assignRound(challengeId) {
     const selectEl = document.getElementById('roundSelect');
     const statusEl = document.getElementById('roundAssignStatus');
-    const roundId = selectEl.value ? parseInt(selectEl.value) : null;
+    let roundId = null;
+    
+    // Only parse if there's a value, and validate the result
+    if (selectEl.value) {
+        const parsed = parseInt(selectEl.value, 10);
+        roundId = !isNaN(parsed) ? parsed : null;
+    }
     
     try {
         const response = await fetch(`/challenges/${challengeId}/assign-round`, {

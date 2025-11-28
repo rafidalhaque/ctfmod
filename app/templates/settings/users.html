@@ -59,14 +59,14 @@
                             </td>
                             <td class="hidden md:table-cell">
                                 {% if user.created_at %}
-                                <span class="text-sm text-base-content/70">{{ user.created_at[:10] if user.created_at else 'N/A' }}</span>
+                                <span class="text-sm text-base-content/70">{{ user.created_at.split('T')[0] if 'T' in (user.created_at|string) else (user.created_at|string)[:10] }}</span>
                                 {% else %}
                                 <span class="text-sm text-base-content/50">-</span>
                                 {% endif %}
                             </td>
                             <td class="hidden lg:table-cell">
                                 {% if user.last_sign_in_at %}
-                                <span class="text-sm text-base-content/70">{{ user.last_sign_in_at[:10] if user.last_sign_in_at else 'N/A' }}</span>
+                                <span class="text-sm text-base-content/70">{{ user.last_sign_in_at.split('T')[0] if 'T' in (user.last_sign_in_at|string) else (user.last_sign_in_at|string)[:10] }}</span>
                                 {% else %}
                                 <span class="text-sm text-base-content/50">-</span>
                                 {% endif %}
