@@ -5,6 +5,7 @@ import requests
 import yaml
 from yaml import YAMLError
 import hmac
+from datetime import datetime, timezone
 
 api_bp = Blueprint('api', __name__)
 
@@ -316,9 +317,17 @@ def sync_github():
                 supabase.table('challenges').insert(challenge_data).execute()
                 synced_count += 1
         
+        # Save the last sync timestamp
+        last_sync_time = datetime.now(timezone.utc).isoformat()
+        supabase.table('settings').upsert({
+            'key': 'last_sync_time',
+            'value': last_sync_time
+        }, on_conflict='key').execute()
+        
         return jsonify({
             'success': True,
-            'message': f'Synced {synced_count} new challenges, updated {updated_count} existing from GitHub'
+            'message': f'Synced {synced_count} new challenges, updated {updated_count} existing from GitHub',
+            'last_sync_time': last_sync_time
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
