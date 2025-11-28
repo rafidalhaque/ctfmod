@@ -137,7 +137,7 @@
                         <thead>
                             <tr>
                                 <th>Category</th>
-                                <th>Total</th>
+                                <th>Target</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
                                 <th>Declined</th>
@@ -146,18 +146,25 @@
                         </thead>
                         <tbody>
                             {% for category, data in stats.by_category.items() %}
+                            {% set category_target = stats.targets_by_category.get(category, 0) %}
                             <tr>
                                 <td>
                                     <span class="badge badge-outline">{{ category }}</span>
                                 </td>
-                                <td>{{ data.total }}</td>
+                                <td>{{ category_target if category_target > 0 else '-' }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
-                                    <progress class="progress progress-success w-20" 
-                                              value="{{ data.accepted }}" 
-                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                    {% set max_val = category_target if category_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    <div class="flex items-center gap-2">
+                                        <progress class="progress progress-success w-20" 
+                                                  value="{{ data.accepted }}" 
+                                                  max="{{ max_val }}"></progress>
+                                        {% if category_target > 0 %}
+                                        <span class="text-xs">{{ data.accepted }}/{{ category_target }}</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
@@ -180,7 +187,7 @@
                         <thead>
                             <tr>
                                 <th>Difficulty</th>
-                                <th>Total</th>
+                                <th>Target</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
                                 <th>Declined</th>
@@ -189,6 +196,7 @@
                         </thead>
                         <tbody>
                             {% for difficulty, data in stats.by_difficulty.items() %}
+                            {% set difficulty_target = stats.targets_by_difficulty.get(difficulty, 0) %}
                             <tr>
                                 <td>
                                     {% if difficulty == 'Easy' %}
@@ -201,14 +209,20 @@
                                     <span class="badge">{{ difficulty }}</span>
                                     {% endif %}
                                 </td>
-                                <td>{{ data.total }}</td>
+                                <td>{{ difficulty_target if difficulty_target > 0 else '-' }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
-                                    <progress class="progress progress-success w-20" 
-                                              value="{{ data.accepted }}" 
-                                              max="{{ data.total if data.total > 0 else 1 }}"></progress>
+                                    {% set max_val = difficulty_target if difficulty_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    <div class="flex items-center gap-2">
+                                        <progress class="progress progress-success w-20" 
+                                                  value="{{ data.accepted }}" 
+                                                  max="{{ max_val }}"></progress>
+                                        {% if difficulty_target > 0 %}
+                                        <span class="text-xs">{{ data.accepted }}/{{ difficulty_target }}</span>
+                                        {% endif %}
+                                    </div>
                                 </td>
                             </tr>
                             {% else %}
