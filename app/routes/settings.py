@@ -2,8 +2,40 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 import secrets
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 settings_bp = Blueprint('settings', __name__)
+
+
+def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
+    """Convert a datetime-local string to ISO 8601 format with timezone offset.
+    
+    Args:
+        datetime_str: String in format 'YYYY-MM-DDTHH:MM' from datetime-local input
+        timezone_str: IANA timezone string like 'Asia/Dhaka' or 'UTC'
+    
+    Returns:
+        ISO 8601 formatted string with timezone offset, or None if input is invalid
+    """
+    if not datetime_str:
+        return None
+    
+    try:
+        # Parse the datetime-local string (which has no timezone info)
+        naive_dt = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
+        
+        # Get the timezone object
+        tz = ZoneInfo(timezone_str) if timezone_str else ZoneInfo('UTC')
+        
+        # Localize the naive datetime to the specified timezone
+        localized_dt = naive_dt.replace(tzinfo=tz)
+        
+        # Return ISO 8601 format with timezone offset
+        return localized_dt.isoformat()
+    except (ValueError, ZoneInfoNotFoundError):
+        # Return the original string if parsing fails
+        return datetime_str
 
 
 @settings_bp.route('/settings')
@@ -44,9 +76,22 @@ def index():
                 for round_item in rounds:
                     if round_item.get('start_datetime'):
                         dt_str = round_item['start_datetime']
-                        # Parse and format for display (YYYY-MM-DD HH:MM)
+                        timezone_str = round_item.get('timezone', 'UTC')
+                        # Parse and format for display and datetime-local input
                         try:
-                            # Handle ISO format with timezone
+                            # Parse ISO format datetime
+                            dt = datetime.fromisoformat(dt_str)
+                            
+                            # Convert to the round's timezone for display
+                            tz = ZoneInfo(timezone_str)
+                            dt_in_tz = dt.astimezone(tz)
+                            
+                            # Format for display (human readable)
+                            round_item['start_datetime_display'] = dt_in_tz.strftime('%Y-%m-%d %H:%M')
+                            # Format for datetime-local input (YYYY-MM-DDTHH:MM)
+                            round_item['start_datetime_input'] = dt_in_tz.strftime('%Y-%m-%dT%H:%M')
+                        except (ValueError, ZoneInfoNotFoundError):
+                            # Fallback for legacy datetime formats without timezone
                             if 'T' in dt_str:
                                 dt_part = dt_str.split('T')
                                 date_part = dt_part[0]
@@ -56,9 +101,6 @@ def index():
                             else:
                                 round_item['start_datetime_display'] = dt_str[:16].replace('T', ' ')
                                 round_item['start_datetime_input'] = dt_str[:16]
-                        except Exception:
-                            round_item['start_datetime_display'] = dt_str
-                            round_item['start_datetime_input'] = dt_str
                     else:
                         round_item['start_datetime_display'] = None
                         round_item['start_datetime_input'] = ''
@@ -219,16 +261,18 @@ def create_round():
         if not name:
             return jsonify({'error': 'Round name is required'}), 400
         
+        timezone = data.get('timezone', 'UTC')
         round_data = {
             'name': name,
-            'description': data.get('description', '')
+            'description': data.get('description', ''),
+            'timezone': timezone
         }
         
-        # Add schedule fields if provided
+        # Add schedule fields if provided - convert to ISO 8601 with timezone offset
         if data.get('start_datetime'):
-            round_data['start_datetime'] = data.get('start_datetime')
-        if data.get('timezone'):
-            round_data['timezone'] = data.get('timezone')
+            round_data['start_datetime'] = convert_datetime_to_iso_with_timezone(
+                data.get('start_datetime'), timezone
+            )
         
         response = supabase.table('rounds').insert(round_data).execute()
         return jsonify({'success': True, 'data': response.data[0] if response.data else None})
@@ -257,14 +301,20 @@ def update_round(round_id):
         if not existing.data:
             return jsonify({'error': 'Round not found'}), 404
         
+        timezone = data.get('timezone', 'UTC')
         update_data = {
             'name': name,
-            'description': data.get('description', '')
+            'description': data.get('description', ''),
+            'timezone': timezone
         }
         
-        # Add schedule fields
-        update_data['start_datetime'] = data.get('start_datetime') if data.get('start_datetime') else None
-        update_data['timezone'] = data.get('timezone', 'UTC')
+        # Add schedule fields - convert to ISO 8601 with timezone offset
+        if data.get('start_datetime'):
+            update_data['start_datetime'] = convert_datetime_to_iso_with_timezone(
+                data.get('start_datetime'), timezone
+            )
+        else:
+            update_data['start_datetime'] = None
         
         supabase.table('rounds').update(update_data).eq('id', round_id).execute()
         return jsonify({'success': True, 'message': 'Round updated successfully'})
