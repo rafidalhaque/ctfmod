@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 import secrets
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -33,7 +33,7 @@ def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
         
         # Return ISO 8601 format with timezone offset
         return localized_dt.isoformat()
-    except (ValueError, KeyError):
+    except (ValueError, ZoneInfoNotFoundError):
         # Return the original string if parsing fails
         return datetime_str
 
@@ -90,7 +90,7 @@ def index():
                             round_item['start_datetime_display'] = dt_in_tz.strftime('%Y-%m-%d %H:%M')
                             # Format for datetime-local input (YYYY-MM-DDTHH:MM)
                             round_item['start_datetime_input'] = dt_in_tz.strftime('%Y-%m-%dT%H:%M')
-                        except (ValueError, KeyError) as e:
+                        except (ValueError, ZoneInfoNotFoundError):
                             # Fallback for legacy datetime formats without timezone
                             if 'T' in dt_str:
                                 dt_part = dt_str.split('T')

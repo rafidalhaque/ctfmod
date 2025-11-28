@@ -364,6 +364,7 @@ function formatLastSyncTime(isoString) {
             second: '2-digit'
         });
     } catch (e) {
+        console.warn('Failed to parse last sync time:', isoString, e);
         return 'Last synced: ' + isoString;
     }
 }
