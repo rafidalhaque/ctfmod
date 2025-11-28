@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, session
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.models import User
@@ -122,3 +122,69 @@ def logout():
     logout_user()
     flash('Successfully logged out.', 'success')
     return redirect(url_for('auth.login'))
+
+
+@auth_bp.route('/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    """Handle password change for authenticated users."""
+    if request.method == 'POST':
+        current_password = request.form.get('current_password', '')
+        new_password = request.form.get('new_password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        if not current_password or not new_password or not confirm_password:
+            flash('Please fill in all fields.', 'error')
+            return render_template('auth/change_password.html')
+        
+        if new_password != confirm_password:
+            flash('New passwords do not match.', 'error')
+            return render_template('auth/change_password.html')
+        
+        if len(new_password) < 6:
+            flash('New password must be at least 6 characters long.', 'error')
+            return render_template('auth/change_password.html')
+        
+        try:
+            supabase = get_supabase_client()
+            if not supabase:
+                flash('Database connection not configured.', 'error')
+                return render_template('auth/change_password.html')
+            
+            # Save current session data
+            saved_user_data = session.get('user_data')
+            saved_access_token = session.get('access_token')
+            
+            # Verify the current password by attempting to sign in
+            try:
+                supabase.auth.sign_in_with_password({
+                    'email': current_user.email,
+                    'password': current_password
+                })
+            except Exception:
+                # Restore session data after failed verification
+                if saved_user_data:
+                    session['user_data'] = saved_user_data
+                if saved_access_token:
+                    session['access_token'] = saved_access_token
+                flash('Current password is incorrect.', 'error')
+                return render_template('auth/change_password.html')
+            
+            # Update the password
+            supabase.auth.update_user({
+                'password': new_password
+            })
+            
+            # Restore the original session data
+            if saved_user_data:
+                session['user_data'] = saved_user_data
+            if saved_access_token:
+                session['access_token'] = saved_access_token
+            
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('dashboard.index'))
+            
+        except Exception as e:
+            flash(f'Failed to change password: {str(e)}', 'error')
+    
+    return render_template('auth/change_password.html')

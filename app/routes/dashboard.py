@@ -19,11 +19,13 @@ def index():
         'declined_challenges': 0,
         'by_category': {},
         'by_difficulty': {},
+        'by_target': {},  # Stats organized by target (category + difficulty + round)
         'targets': {}
     }
     
     challenges = []
     targets = []
+    rounds = []
     
     if supabase:
         try:
@@ -31,12 +33,20 @@ def index():
             challenges_response = supabase.table('challenges').select('*').execute()
             challenges = challenges_response.data if challenges_response.data else []
             
+            # Fetch rounds
+            try:
+                rounds_response = supabase.table('rounds').select('*').execute()
+                rounds = rounds_response.data if rounds_response.data else []
+            except Exception:
+                rounds = []
+            
             # Calculate statistics
             stats['total_challenges'] = len(challenges)
             for challenge in challenges:
                 status = challenge.get('status', 'pending')
                 category = challenge.get('category', 'Unknown')
                 difficulty = challenge.get('difficulty', 'Unknown')
+                round_id = challenge.get('round_id')
                 
                 if status == 'accepted':
                     stats['accepted_challenges'] += 1
@@ -47,21 +57,38 @@ def index():
                 
                 # Count by category
                 if category not in stats['by_category']:
-                    stats['by_category'][category] = {'total': 0, 'accepted': 0, 'pending': 0}
+                    stats['by_category'][category] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
                 stats['by_category'][category]['total'] += 1
                 if status == 'accepted':
                     stats['by_category'][category]['accepted'] += 1
                 elif status == 'pending':
                     stats['by_category'][category]['pending'] += 1
+                elif status == 'declined':
+                    stats['by_category'][category]['declined'] += 1
                 
                 # Count by difficulty
                 if difficulty not in stats['by_difficulty']:
-                    stats['by_difficulty'][difficulty] = {'total': 0, 'accepted': 0, 'pending': 0}
+                    stats['by_difficulty'][difficulty] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
                 stats['by_difficulty'][difficulty]['total'] += 1
                 if status == 'accepted':
                     stats['by_difficulty'][difficulty]['accepted'] += 1
                 elif status == 'pending':
                     stats['by_difficulty'][difficulty]['pending'] += 1
+                elif status == 'declined':
+                    stats['by_difficulty'][difficulty]['declined'] += 1
+                
+                # Count by target key (category + difficulty + round)
+                round_key = str(round_id) if round_id else 'all'
+                target_key = f"{category}_{difficulty}_{round_key}"
+                if target_key not in stats['by_target']:
+                    stats['by_target'][target_key] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
+                stats['by_target'][target_key]['total'] += 1
+                if status == 'accepted':
+                    stats['by_target'][target_key]['accepted'] += 1
+                elif status == 'pending':
+                    stats['by_target'][target_key]['pending'] += 1
+                elif status == 'declined':
+                    stats['by_target'][target_key]['declined'] += 1
             
             # Fetch targets
             targets_response = supabase.table('targets').select('*').execute()
@@ -77,7 +104,8 @@ def index():
     return render_template('dashboard/index.html', 
                          stats=stats, 
                          challenges=challenges,
-                         targets=targets)
+                         targets=targets,
+                         rounds=rounds)
 
 
 @dashboard_bp.route('/api/stats')
@@ -114,12 +142,12 @@ def get_stats():
                     stats['declined_challenges'] += 1
                 
                 if category not in stats['by_category']:
-                    stats['by_category'][category] = {'total': 0, 'accepted': 0, 'pending': 0}
+                    stats['by_category'][category] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
                 stats['by_category'][category]['total'] += 1
                 stats['by_category'][category][status] = stats['by_category'][category].get(status, 0) + 1
                 
                 if difficulty not in stats['by_difficulty']:
-                    stats['by_difficulty'][difficulty] = {'total': 0, 'accepted': 0, 'pending': 0}
+                    stats['by_difficulty'][difficulty] = {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}
                 stats['by_difficulty'][difficulty]['total'] += 1
                 stats['by_difficulty'][difficulty][status] = stats['by_difficulty'][difficulty].get(status, 0) + 1
                 

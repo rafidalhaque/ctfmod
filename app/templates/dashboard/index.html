@@ -75,6 +75,7 @@
                                 <th>Total</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
+                                <th>Declined</th>
                                 <th>Progress</th>
                             </tr>
                         </thead>
@@ -87,6 +88,7 @@
                                 <td>{{ data.total }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
+                                <td class="text-error">{{ data.declined }}</td>
                                 <td>
                                     <progress class="progress progress-success w-20" 
                                               value="{{ data.accepted }}" 
@@ -95,7 +97,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-base-content/50">No data available</td>
+                                <td colspan="6" class="text-center text-base-content/50">No data available</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -116,6 +118,7 @@
                                 <th>Total</th>
                                 <th>Accepted</th>
                                 <th>Pending</th>
+                                <th>Declined</th>
                                 <th>Progress</th>
                             </tr>
                         </thead>
@@ -136,6 +139,7 @@
                                 <td>{{ data.total }}</td>
                                 <td class="text-success">{{ data.accepted }}</td>
                                 <td class="text-warning">{{ data.pending }}</td>
+                                <td class="text-error">{{ data.declined }}</td>
                                 <td>
                                     <progress class="progress progress-success w-20" 
                                               value="{{ data.accepted }}" 
@@ -144,7 +148,7 @@
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="5" class="text-center text-base-content/50">No data available</td>
+                                <td colspan="6" class="text-center text-base-content/50">No data available</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -159,36 +163,63 @@
         <div class="card-body">
             <h2 class="card-title">Challenge Targets</h2>
             {% if targets %}
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {% for target in targets %}
-                {% set key = target.category ~ '_' ~ target.difficulty %}
-                {% set current = 0 %}
-                {% if target.category in stats.by_category and target.difficulty in stats.by_difficulty %}
-                    {% set current = stats.by_category[target.category].accepted %}
-                {% endif %}
-                <div class="card bg-base-200">
-                    <div class="card-body p-4">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <span class="badge badge-outline">{{ target.category }}</span>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Round</th>
+                            <th>Category</th>
+                            <th>Difficulty</th>
+                            <th>Target</th>
+                            <th>Accepted</th>
+                            <th>Pending</th>
+                            <th>Declined</th>
+                            <th>Progress</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for target in targets %}
+                        {% set round_key = target.round_id|string if target.round_id else 'all' %}
+                        {% set target_key = target.category ~ '_' ~ target.difficulty ~ '_' ~ round_key %}
+                        {% set target_stats = stats.by_target.get(target_key, {'total': 0, 'accepted': 0, 'pending': 0, 'declined': 0}) %}
+                        <tr>
+                            <td>
+                                {% set ns = namespace(round_name='All Rounds') %}
+                                {% for round in rounds %}
+                                    {% if round.id == target.round_id %}
+                                        {% set ns.round_name = round.name %}
+                                    {% endif %}
+                                {% endfor %}
+                                <span class="badge badge-outline badge-primary">{{ ns.round_name }}</span>
+                            </td>
+                            <td><span class="badge badge-outline">{{ target.category }}</span></td>
+                            <td>
                                 {% if target.difficulty == 'Easy' %}
-                                <span class="badge badge-success badge-sm ml-1">{{ target.difficulty }}</span>
+                                <span class="badge badge-success">{{ target.difficulty }}</span>
                                 {% elif target.difficulty == 'Medium' %}
-                                <span class="badge badge-warning badge-sm ml-1">{{ target.difficulty }}</span>
+                                <span class="badge badge-warning">{{ target.difficulty }}</span>
                                 {% elif target.difficulty == 'Hard' %}
-                                <span class="badge badge-error badge-sm ml-1">{{ target.difficulty }}</span>
+                                <span class="badge badge-error">{{ target.difficulty }}</span>
                                 {% else %}
-                                <span class="badge badge-sm ml-1">{{ target.difficulty }}</span>
+                                <span class="badge">{{ target.difficulty }}</span>
                                 {% endif %}
-                            </div>
-                            <span class="font-bold">{{ current }} / {{ target.target_count }}</span>
-                        </div>
-                        <progress class="progress progress-primary w-full mt-2" 
-                                  value="{{ current }}" 
-                                  max="{{ target.target_count if target.target_count > 0 else 1 }}"></progress>
-                    </div>
-                </div>
-                {% endfor %}
+                            </td>
+                            <td>{{ target.target_count }}</td>
+                            <td class="text-success">{{ target_stats.accepted }}</td>
+                            <td class="text-warning">{{ target_stats.pending }}</td>
+                            <td class="text-error">{{ target_stats.declined }}</td>
+                            <td>
+                                <div class="flex items-center gap-2">
+                                    <progress class="progress progress-success w-20" 
+                                              value="{{ target_stats.accepted }}" 
+                                              max="{{ target.target_count if target.target_count > 0 else 1 }}"></progress>
+                                    <span class="text-sm">{{ target_stats.accepted }}/{{ target.target_count }}</span>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
             {% else %}
             <p class="text-base-content/50">No targets set. <a href="{{ url_for('settings.index') }}" class="link link-primary">Set targets in settings</a></p>

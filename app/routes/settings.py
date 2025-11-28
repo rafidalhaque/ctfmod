@@ -126,6 +126,43 @@ def update_targets():
         return jsonify({'error': str(e)}), 500
 
 
+@settings_bp.route('/settings/targets/<int:target_id>', methods=['PUT'])
+@login_required
+def update_target(target_id):
+    """Update an existing challenge target."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        category = data.get('category')
+        difficulty = data.get('difficulty')
+        target_count = data.get('target_count', 0)
+        round_id = data.get('round_id')
+        
+        if not category or not difficulty:
+            return jsonify({'error': 'Category and difficulty are required'}), 400
+        
+        # First check if the target exists
+        existing = supabase.table('targets').select('id').eq('id', target_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Target not found'}), 404
+        
+        update_data = {
+            'category': category,
+            'difficulty': difficulty,
+            'target_count': target_count,
+            'round_id': round_id if round_id else None
+        }
+        
+        supabase.table('targets').update(update_data).eq('id', target_id).execute()
+        return jsonify({'success': True, 'message': 'Target updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @settings_bp.route('/settings/targets/<int:target_id>', methods=['DELETE'])
 @login_required
 def delete_target(target_id):
