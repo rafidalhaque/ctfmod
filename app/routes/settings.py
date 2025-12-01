@@ -433,3 +433,288 @@ def users_list():
             flash(f'Error fetching users: {str(e)}', 'error')
     
     return render_template('settings/users.html', users=users)
+
+
+@settings_bp.route('/settings/smtp', methods=['POST'])
+@login_required
+def update_smtp_settings():
+    """Update SMTP email settings."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        
+        # SMTP settings keys
+        smtp_keys = ['smtp_host', 'smtp_port', 'smtp_username', 'smtp_password', 
+                     'smtp_sender_email', 'smtp_sender_name', 'smtp_use_tls', 'smtp_use_ssl']
+        
+        for key in smtp_keys:
+            if key in data:
+                supabase.table('settings').upsert({
+                    'key': key,
+                    'value': str(data[key]) if data[key] is not None else ''
+                }, on_conflict='key').execute()
+        
+        return jsonify({'success': True, 'message': 'SMTP settings updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/smtp/test', methods=['POST'])
+@login_required
+def test_smtp_settings():
+    """Test SMTP connection by sending a test email."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        test_email = data.get('test_email')
+        
+        if not test_email:
+            return jsonify({'error': 'Test email address is required'}), 400
+        
+        # Fetch SMTP settings
+        settings_response = supabase.table('settings').select('*').execute()
+        settings = {}
+        if settings_response.data:
+            for setting in settings_response.data:
+                settings[setting['key']] = setting['value']
+        
+        smtp_host = settings.get('smtp_host', '')
+        smtp_port = int(settings.get('smtp_port', 587))
+        smtp_username = settings.get('smtp_username', '')
+        smtp_password = settings.get('smtp_password', '')
+        sender_email = settings.get('smtp_sender_email', '')
+        sender_name = settings.get('smtp_sender_name', 'CTF Manager')
+        use_tls = settings.get('smtp_use_tls', 'true').lower() == 'true'
+        use_ssl = settings.get('smtp_use_ssl', 'false').lower() == 'true'
+        
+        if not smtp_host or not sender_email:
+            return jsonify({'error': 'SMTP host and sender email are required'}), 400
+        
+        # Create test message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'CTF Manager - Test Email'
+        msg['From'] = f'{sender_name} <{sender_email}>'
+        msg['To'] = test_email
+        
+        text_content = 'This is a test email from CTF Manager. Your SMTP settings are configured correctly!'
+        html_content = '''
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px;">
+            <h2 style="color: #667eea;">CTF Manager - Test Email</h2>
+            <p>This is a test email from CTF Manager.</p>
+            <p style="color: #22c55e; font-weight: bold;">✓ Your SMTP settings are configured correctly!</p>
+        </body>
+        </html>
+        '''
+        
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(html_content, 'html'))
+        
+        # Send email
+        if use_ssl:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
+        else:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
+            if use_tls:
+                server.starttls()
+        
+        if smtp_username and smtp_password:
+            server.login(smtp_username, smtp_password)
+        
+        server.sendmail(sender_email, test_email, msg.as_string())
+        server.quit()
+        
+        return jsonify({'success': True, 'message': f'Test email sent successfully to {test_email}'})
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'SMTP authentication failed. Check username and password.'}), 400
+    except smtplib.SMTPConnectError:
+        return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
+
+
+@settings_bp.route('/settings/email-templates')
+@login_required
+def email_templates():
+    """List all email templates."""
+    supabase = get_supabase_client()
+    templates = []
+    
+    if supabase:
+        try:
+            response = supabase.table('email_templates').select('*').order('name').execute()
+            templates = response.data if response.data else []
+        except Exception as e:
+            flash(f'Error fetching email templates: {str(e)}', 'error')
+    
+    return render_template('settings/email_templates.html', templates=templates)
+
+
+@settings_bp.route('/settings/email-templates', methods=['POST'])
+@login_required
+def create_email_template():
+    """Create a new email template."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        subject = data.get('subject', '').strip()
+        body = data.get('body', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not name:
+            return jsonify({'error': 'Template name is required'}), 400
+        if not subject:
+            return jsonify({'error': 'Email subject is required'}), 400
+        if not body:
+            return jsonify({'error': 'Email body is required'}), 400
+        
+        template_data = {
+            'name': name,
+            'subject': subject,
+            'body': body,
+            'description': description
+        }
+        
+        response = supabase.table('email_templates').insert(template_data).execute()
+        return jsonify({'success': True, 'data': response.data[0] if response.data else None})
+    except Exception as e:
+        error_msg = str(e)
+        if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
+            return jsonify({'error': f'A template with name "{name}" already exists'}), 400
+        return jsonify({'error': error_msg}), 500
+
+
+@settings_bp.route('/settings/email-templates/<int:template_id>', methods=['GET'])
+@login_required
+def get_email_template(template_id):
+    """Get a specific email template."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        response = supabase.table('email_templates').select('*').eq('id', template_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Template not found'}), 404
+        return jsonify({'success': True, 'data': response.data[0]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-templates/<int:template_id>', methods=['PUT'])
+@login_required
+def update_email_template(template_id):
+    """Update an existing email template."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        name = data.get('name', '').strip()
+        subject = data.get('subject', '').strip()
+        body = data.get('body', '').strip()
+        description = data.get('description', '').strip()
+        
+        if not name:
+            return jsonify({'error': 'Template name is required'}), 400
+        if not subject:
+            return jsonify({'error': 'Email subject is required'}), 400
+        if not body:
+            return jsonify({'error': 'Email body is required'}), 400
+        
+        # Check if template exists
+        existing = supabase.table('email_templates').select('id').eq('id', template_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        update_data = {
+            'name': name,
+            'subject': subject,
+            'body': body,
+            'description': description
+        }
+        
+        supabase.table('email_templates').update(update_data).eq('id', template_id).execute()
+        return jsonify({'success': True, 'message': 'Template updated successfully'})
+    except Exception as e:
+        error_msg = str(e)
+        if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
+            return jsonify({'error': f'A template with name "{name}" already exists'}), 400
+        return jsonify({'error': error_msg}), 500
+
+
+@settings_bp.route('/settings/email-templates/<int:template_id>', methods=['DELETE'])
+@login_required
+def delete_email_template(template_id):
+    """Delete an email template."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        supabase.table('email_templates').delete().eq('id', template_id).execute()
+        return jsonify({'success': True, 'message': 'Template deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-templates/preview', methods=['POST'])
+@login_required
+def preview_email_template():
+    """Preview an email template with sample variable replacements."""
+    try:
+        data = request.json
+        subject = data.get('subject', '')
+        body = data.get('body', '')
+        
+        # Sample variable values for preview
+        sample_variables = {
+            'user_name': 'John Doe',
+            'user_email': 'john@example.com',
+            'event_name': 'Science Fest CTF',
+            'site_name': 'CTF Manager',
+            'challenge_name': 'Sample Challenge',
+            'category': 'Web',
+            'difficulty': 'Medium',
+            'setter': 'admin',
+            'round_name': 'Preliminary',
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'time': datetime.now().strftime('%H:%M')
+        }
+        
+        # Replace variables in subject and body
+        preview_subject = subject
+        preview_body = body
+        
+        for var_name, var_value in sample_variables.items():
+            preview_subject = preview_subject.replace('{{' + var_name + '}}', var_value)
+            preview_body = preview_body.replace('{{' + var_name + '}}', var_value)
+        
+        return jsonify({
+            'success': True,
+            'preview_subject': preview_subject,
+            'preview_body': preview_body
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

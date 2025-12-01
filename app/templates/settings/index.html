@@ -10,12 +10,20 @@
             <h1 class="text-3xl font-bold">Settings</h1>
             <p class="text-base-content/70">Configure your CTF Manager platform</p>
         </div>
-        <a href="{{ url_for('settings.users_list') }}" class="btn btn-outline btn-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-            View Users
-        </a>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('settings.email_templates') }}" class="btn btn-outline btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Email Templates
+            </a>
+            <a href="{{ url_for('settings.users_list') }}" class="btn btn-outline btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                View Users
+            </a>
+        </div>
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -142,6 +150,113 @@
                     </div>
                     
                     <button type="submit" class="btn btn-primary">Save CTFd Settings</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- SMTP Settings -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                    SMTP Email Settings
+                </h2>
+                <p class="text-base-content/70 text-sm mb-4">Configure email server for sending notifications</p>
+                
+                <form id="smtpSettingsForm" class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">SMTP Host</span>
+                            </label>
+                            <input type="text" name="smtp_host" 
+                                   value="{{ settings.get('smtp_host', '') }}"
+                                   placeholder="smtp.example.com"
+                                   class="input input-bordered w-full" />
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">SMTP Port</span>
+                            </label>
+                            <input type="number" name="smtp_port" 
+                                   value="{{ settings.get('smtp_port', '587') }}"
+                                   placeholder="587"
+                                   class="input input-bordered w-full" />
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Username</span>
+                            </label>
+                            <input type="text" name="smtp_username" 
+                                   value="{{ settings.get('smtp_username', '') }}"
+                                   placeholder="username@example.com"
+                                   class="input input-bordered w-full" />
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Password</span>
+                            </label>
+                            <input type="password" name="smtp_password" 
+                                   value="{{ settings.get('smtp_password', '') }}"
+                                   placeholder="••••••••"
+                                   class="input input-bordered w-full" />
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Sender Email</span>
+                            </label>
+                            <input type="email" name="smtp_sender_email" 
+                                   value="{{ settings.get('smtp_sender_email', '') }}"
+                                   placeholder="noreply@example.com"
+                                   class="input input-bordered w-full" />
+                        </div>
+                        
+                        <div class="form-control">
+                            <label class="label">
+                                <span class="label-text">Sender Name</span>
+                            </label>
+                            <input type="text" name="smtp_sender_name" 
+                                   value="{{ settings.get('smtp_sender_name', 'CTF Manager') }}"
+                                   placeholder="CTF Manager"
+                                   class="input input-bordered w-full" />
+                        </div>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4">
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" name="smtp_use_tls" value="true"
+                                   {{ 'checked' if settings.get('smtp_use_tls', 'true') == 'true' else '' }}
+                                   class="checkbox checkbox-primary" />
+                            <span class="label-text">Use TLS (STARTTLS)</span>
+                        </label>
+                        
+                        <label class="label cursor-pointer gap-2">
+                            <input type="checkbox" name="smtp_use_ssl" value="true"
+                                   {{ 'checked' if settings.get('smtp_use_ssl', 'false') == 'true' else '' }}
+                                   class="checkbox checkbox-primary" />
+                            <span class="label-text">Use SSL</span>
+                        </label>
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-primary">Save SMTP Settings</button>
+                        <button type="button" onclick="showTestEmailModal()" class="btn btn-outline">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                            Send Test Email
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -620,6 +735,38 @@
         <button>close</button>
     </form>
 </dialog>
+
+<!-- Test Email Modal -->
+<dialog id="testEmailModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Send Test Email</h3>
+        <p class="text-base-content/70 text-sm mt-2">Send a test email to verify your SMTP configuration</p>
+        
+        <form id="testEmailForm" class="space-y-4 mt-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Recipient Email</span>
+                </label>
+                <input type="email" name="test_email" id="testEmailAddress"
+                       placeholder="your@email.com"
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="modal-action">
+                <button type="button" onclick="closeTestEmailModal()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    Send Test Email
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -828,6 +975,91 @@ document.getElementById('ctfdSettingsForm').addEventListener('submit', async (e)
 document.getElementById('categoriesForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     await saveSettings(new FormData(e.target));
+});
+
+// SMTP Settings Form
+document.getElementById('smtpSettingsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveSMTPSettings(new FormData(e.target));
+});
+
+async function saveSMTPSettings(formData) {
+    const data = {};
+    // Get all inputs except checkboxes
+    for (const [key, value] of formData.entries()) {
+        if (!key.startsWith('smtp_use_')) {
+            data[key] = value;
+        }
+    }
+    // Handle checkboxes - they only appear in formData if checked
+    data.smtp_use_tls = formData.has('smtp_use_tls') ? 'true' : 'false';
+    data.smtp_use_ssl = formData.has('smtp_use_ssl') ? 'true' : 'false';
+    
+    try {
+        const response = await fetch('/settings/smtp', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('SMTP settings saved successfully!');
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error saving SMTP settings: ' + error.message);
+    }
+}
+
+// Test Email Modal Functions
+function showTestEmailModal() {
+    document.getElementById('testEmailModal').showModal();
+}
+
+function closeTestEmailModal() {
+    document.getElementById('testEmailModal').close();
+}
+
+document.getElementById('testEmailForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const testEmail = formData.get('test_email');
+    
+    // Show loading state
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Sending...';
+    submitBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/settings/smtp/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ test_email: testEmail })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert(result.message);
+            closeTestEmailModal();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error sending test email: ' + error.message);
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
 });
 
 async function saveSettings(formData) {

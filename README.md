@@ -15,6 +15,8 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - 🏆 **Rounds Management**: Organize challenges into rounds (e.g., Preliminary, Final) with scheduling
 - 📈 **Public Stats API**: Access detailed statistics via authenticated API
 - ⚙️ **Dynamic Settings**: All configurations manageable from the UI
+- 📧 **SMTP Email Configuration**: Configure SMTP settings for sending emails with test functionality
+- ✉️ **Dynamic Email Designer**: Create and manage email templates with variable placeholders
 
 ## Tech Stack
 
@@ -22,7 +24,7 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - **Frontend**: DaisyUI, Tailwind CSS (via CDN)
 - **Database**: Supabase (PostgreSQL)
 - **Authentication**: Supabase Auth
-- **Integrations**: GitHub API, CTFd API
+- **Integrations**: GitHub API, CTFd API, SMTP Email
 
 ## Installation
 
@@ -55,6 +57,7 @@ cp .env.example .env
      1. `001_initial_schema.sql` - Creates base tables (challenges, settings, targets)
      2. `002_add_rounds_table.sql` - Adds rounds table and round support for targets
      3. `003_add_round_schedule.sql` - Adds schedule fields to rounds (start_datetime, timezone)
+     4. `004_add_email_templates.sql` - Adds email templates table for dynamic email designer
    - Update `.env` with your Supabase URL and key
 
 6. Run the application:
@@ -77,6 +80,10 @@ Adds support for organizing challenges into rounds:
 - `rounds` - Table for defining CTF rounds (e.g., Preliminary, Final)
 - Adds `round_id` foreign key to `targets` and `challenges` tables
 - Updates unique constraint on targets to include round_id
+
+### Migration 004: Email Templates
+Adds support for dynamic email templates:
+- `email_templates` - Stores email templates with subject, body, and variable placeholders
 
 Run migrations in your Supabase SQL Editor in numerical order.
 
@@ -137,6 +144,19 @@ CREATE TABLE settings (
 );
 ```
 
+### Email Templates Table
+```sql
+CREATE TABLE email_templates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
 ## Environment Variables
 
 | Variable | Description |
@@ -165,6 +185,10 @@ CREATE TABLE settings (
 11. **Edit Targets**: Modify existing targets directly from the Settings page
 12. **View Statistics**: Dashboard shows detailed stats (accepted, pending, declined) for all targets
 13. **Stats API**: Generate an API key in Settings to access statistics via public API
+14. **SMTP Configuration**: Configure email server settings (host, port, username, password, TLS/SSL) in Settings
+15. **Test Email**: Send a test email to verify SMTP configuration
+16. **Email Templates**: Create dynamic email templates with variable placeholders like `{{user_name}}`, `{{event_name}}`
+17. **Template Preview**: Preview email templates with sample data before saving
 
 ## Stats API
 

@@ -1,0 +1,451 @@
+{% extends "base.html" %}
+
+{% block title %}Email Templates - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Email Templates</h1>
+            <p class="text-base-content/70">Design and manage email templates with dynamic variables</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="showAddTemplateModal()" class="btn btn-primary btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                New Template
+            </button>
+            <a href="{{ url_for('settings.index') }}" class="btn btn-ghost btn-sm">
+                ← Back to Settings
+            </a>
+        </div>
+    </div>
+
+    <!-- Available Variables Card -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                Available Variables
+            </h2>
+            <p class="text-base-content/70 text-sm mb-3">Use these placeholders in your email subject and body. They will be replaced with actual values when sending.</p>
+            <div class="flex flex-wrap gap-2">
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_name')">{{user_name}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_email')">{{user_email}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('event_name')">{{event_name}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('site_name')">{{site_name}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('challenge_name')">{{challenge_name}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('category')">{{category}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('difficulty')">{{difficulty}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('setter')">{{setter}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('round_name')">{{round_name}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('date')">{{date}}</code>
+                <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('time')">{{time}}</code>
+            </div>
+            <p class="text-base-content/50 text-xs mt-2">Click a variable to copy it to clipboard</p>
+        </div>
+    </div>
+
+    <!-- Templates Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-4">Email Templates</h2>
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Subject</th>
+                            <th class="hidden md:table-cell">Description</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for template in templates %}
+                        <tr class="hover">
+                            <td>
+                                <span class="badge badge-primary badge-sm">{{ template.name }}</span>
+                            </td>
+                            <td>
+                                <span class="text-sm truncate max-w-[200px] block">{{ template.subject }}</span>
+                            </td>
+                            <td class="hidden md:table-cell">
+                                <span class="text-sm text-base-content/70 truncate max-w-[200px] block">{{ template.description or '-' }}</span>
+                            </td>
+                            <td class="flex gap-1">
+                                <button class="btn btn-xs btn-ghost edit-template-btn"
+                                        data-template-id="{{ template.id }}"
+                                        data-name="{{ template.name }}"
+                                        data-subject="{{ template.subject }}"
+                                        data-body="{{ template.body | e }}"
+                                        data-description="{{ template.description or '' }}">
+                                    Edit
+                                </button>
+                                <button onclick="previewTemplate({{ template.id }})" class="btn btn-xs btn-ghost btn-info">
+                                    Preview
+                                </button>
+                                <button onclick="deleteTemplate({{ template.id }})" class="btn btn-xs btn-ghost btn-error">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center text-base-content/50 py-8">
+                                No email templates yet. Click "New Template" to create one.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 text-sm text-base-content/50">
+                <p>Total templates: {{ templates|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Template Modal -->
+<dialog id="addTemplateModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg">Create Email Template</h3>
+        
+        <form id="addTemplateForm" class="space-y-4 mt-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Template Name</span>
+                    </label>
+                    <input type="text" name="name" placeholder="e.g., welcome_email, challenge_approved" 
+                           class="input input-bordered w-full" required />
+                    <label class="label">
+                        <span class="label-text-alt text-base-content/50">Unique identifier (use lowercase and underscores)</span>
+                    </label>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Description (optional)</span>
+                    </label>
+                    <input type="text" name="description" placeholder="What is this template for?" 
+                           class="input input-bordered w-full" />
+                </div>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email Subject</span>
+                </label>
+                <input type="text" name="subject" id="addSubject"
+                       placeholder="Welcome to {{event_name}}!" 
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email Body (HTML supported)</span>
+                </label>
+                <textarea name="body" id="addBody" rows="10"
+                          placeholder="<h2>Hello {{user_name}}!</h2>&#10;<p>Welcome to {{event_name}}. We're excited to have you!</p>"
+                          class="textarea textarea-bordered w-full font-mono text-sm" required></textarea>
+            </div>
+            
+            <div class="flex justify-between items-center">
+                <button type="button" onclick="previewNewTemplate()" class="btn btn-outline btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Preview
+                </button>
+                
+                <div class="modal-action mt-0">
+                    <button type="button" onclick="closeAddTemplateModal()" class="btn btn-ghost">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Template</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Edit Template Modal -->
+<dialog id="editTemplateModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg">Edit Email Template</h3>
+        
+        <form id="editTemplateForm" class="space-y-4 mt-4">
+            <input type="hidden" name="template_id" id="editTemplateId" />
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Template Name</span>
+                    </label>
+                    <input type="text" name="name" id="editTemplateName" placeholder="e.g., welcome_email" 
+                           class="input input-bordered w-full" required />
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Description (optional)</span>
+                    </label>
+                    <input type="text" name="description" id="editTemplateDescription" placeholder="What is this template for?" 
+                           class="input input-bordered w-full" />
+                </div>
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email Subject</span>
+                </label>
+                <input type="text" name="subject" id="editTemplateSubject"
+                       class="input input-bordered w-full" required />
+            </div>
+            
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Email Body (HTML supported)</span>
+                </label>
+                <textarea name="body" id="editTemplateBody" rows="10"
+                          class="textarea textarea-bordered w-full font-mono text-sm" required></textarea>
+            </div>
+            
+            <div class="flex justify-between items-center">
+                <button type="button" onclick="previewEditTemplate()" class="btn btn-outline btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Preview
+                </button>
+                
+                <div class="modal-action mt-0">
+                    <button type="button" onclick="closeEditTemplateModal()" class="btn btn-ghost">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Template</button>
+                </div>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Preview Modal -->
+<dialog id="previewModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-4">Email Preview</h3>
+        
+        <div class="bg-base-200 rounded-lg p-4 mb-4">
+            <p class="text-sm text-base-content/70">Subject:</p>
+            <p id="previewSubject" class="font-semibold"></p>
+        </div>
+        
+        <div class="bg-white text-black rounded-lg p-4 min-h-[200px]">
+            <div id="previewBody"></div>
+        </div>
+        
+        <div class="modal-action">
+            <button type="button" onclick="closePreviewModal()" class="btn">Close</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Copy variable to clipboard
+function copyVariable(varName) {
+    const variable = '{{' + varName + '}}';
+    navigator.clipboard.writeText(variable).then(() => {
+        // Show toast or visual feedback
+        alert('Copied: ' + variable);
+    }).catch(() => {
+        alert('Failed to copy. Variable: ' + variable);
+    });
+}
+
+// Add Template Modal Functions
+function showAddTemplateModal() {
+    document.getElementById('addTemplateForm').reset();
+    document.getElementById('addTemplateModal').showModal();
+}
+
+function closeAddTemplateModal() {
+    document.getElementById('addTemplateModal').close();
+}
+
+document.getElementById('addTemplateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    
+    try {
+        const response = await fetch('/settings/email-templates', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeAddTemplateModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error creating template: ' + error.message);
+    }
+});
+
+// Edit Template Modal Functions
+function showEditTemplateModal(templateId, name, subject, body, description) {
+    document.getElementById('editTemplateId').value = templateId;
+    document.getElementById('editTemplateName').value = name;
+    document.getElementById('editTemplateSubject').value = subject;
+    document.getElementById('editTemplateBody').value = body;
+    document.getElementById('editTemplateDescription').value = description;
+    document.getElementById('editTemplateModal').showModal();
+}
+
+function closeEditTemplateModal() {
+    document.getElementById('editTemplateModal').close();
+}
+
+// Attach click handlers to edit buttons
+document.querySelectorAll('.edit-template-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const templateId = this.dataset.templateId;
+        const name = this.dataset.name;
+        const subject = this.dataset.subject;
+        const body = this.dataset.body;
+        const description = this.dataset.description;
+        showEditTemplateModal(templateId, name, subject, body, description);
+    });
+});
+
+document.getElementById('editTemplateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData);
+    const templateId = data.template_id;
+    delete data.template_id;
+    
+    try {
+        const response = await fetch(`/settings/email-templates/${templateId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            closeEditTemplateModal();
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error updating template: ' + error.message);
+    }
+});
+
+// Delete Template
+async function deleteTemplate(templateId) {
+    if (!confirm('Are you sure you want to delete this template?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/settings/email-templates/${templateId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error deleting template: ' + error.message);
+    }
+}
+
+// Preview Functions
+function closePreviewModal() {
+    document.getElementById('previewModal').close();
+}
+
+async function fetchPreview(subject, body) {
+    try {
+        const response = await fetch('/settings/email-templates/preview', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ subject, body })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            document.getElementById('previewSubject').textContent = result.preview_subject;
+            document.getElementById('previewBody').innerHTML = result.preview_body;
+            document.getElementById('previewModal').showModal();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error fetching preview: ' + error.message);
+    }
+}
+
+function previewNewTemplate() {
+    const subject = document.getElementById('addSubject').value;
+    const body = document.getElementById('addBody').value;
+    fetchPreview(subject, body);
+}
+
+function previewEditTemplate() {
+    const subject = document.getElementById('editTemplateSubject').value;
+    const body = document.getElementById('editTemplateBody').value;
+    fetchPreview(subject, body);
+}
+
+async function previewTemplate(templateId) {
+    try {
+        const response = await fetch(`/settings/email-templates/${templateId}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            fetchPreview(result.data.subject, result.data.body);
+        } else {
+            alert('Error: ' + (result.error || 'Template not found'));
+        }
+    } catch (error) {
+        alert('Error fetching template: ' + error.message);
+    }
+}
+</script>
+{% endblock %}
