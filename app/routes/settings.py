@@ -453,9 +453,13 @@ def update_smtp_settings():
         
         for key in smtp_keys:
             if key in data:
+                value = data[key]
+                # Skip empty password to preserve existing value
+                if key == 'smtp_password' and not value:
+                    continue
                 supabase.table('settings').upsert({
                     'key': key,
-                    'value': str(data[key]) if data[key] is not None else ''
+                    'value': str(value) if value is not None else ''
                 }, on_conflict='key').execute()
         
         return jsonify({'success': True, 'message': 'SMTP settings updated successfully'})
@@ -597,7 +601,8 @@ def create_email_template():
     except Exception as e:
         error_msg = str(e)
         if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
-            return jsonify({'error': f'A template with name "{name}" already exists'}), 400
+            template_name = data.get('name', 'unknown') if 'data' in dir() else 'unknown'
+            return jsonify({'error': f'A template with this name already exists'}), 400
         return jsonify({'error': error_msg}), 500
 
 
@@ -659,7 +664,7 @@ def update_email_template(template_id):
     except Exception as e:
         error_msg = str(e)
         if 'duplicate key' in error_msg.lower() or 'unique constraint' in error_msg.lower():
-            return jsonify({'error': f'A template with name "{name}" already exists'}), 400
+            return jsonify({'error': 'A template with this name already exists'}), 400
         return jsonify({'error': error_msg}), 500
 
 

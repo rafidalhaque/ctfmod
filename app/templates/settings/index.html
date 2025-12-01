@@ -204,9 +204,14 @@
                                 <span class="label-text">Password</span>
                             </label>
                             <input type="password" name="smtp_password" 
-                                   value="{{ settings.get('smtp_password', '') }}"
-                                   placeholder="••••••••"
+                                   value=""
+                                   placeholder="{{ '••••••••' if settings.get('smtp_password') else 'Enter password' }}"
                                    class="input input-bordered w-full" />
+                            {% if settings.get('smtp_password') %}
+                            <label class="label">
+                                <span class="label-text-alt text-base-content/50">Password is set. Leave empty to keep current.</span>
+                            </label>
+                            {% endif %}
                         </div>
                     </div>
                     
