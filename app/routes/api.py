@@ -233,7 +233,12 @@ def delete_challenge(challenge_id):
 @api_bp.route('/sync-github', methods=['POST'])
 @login_required
 def sync_github():
-    """Sync challenges from GitHub PRs and update data from challenge.yml."""
+    """Sync challenges from GitHub PRs and update data from challenge.yml.
+    
+    This function syncs challenges from open PRs and removes challenges
+    whose PRs have been closed (but not merged). Only open, draft, and 
+    merged PRs should be visible in the portal.
+    """
     supabase = get_supabase_client()
     
     if not supabase:
@@ -263,12 +268,21 @@ def sync_github():
             return jsonify({'error': 'Failed to fetch PRs from GitHub'}), 500
         
         prs = prs_response.json()
+        open_pr_numbers = {pr['number'] for pr in prs}
         synced_count = 0
         updated_count = 0
+        deleted_count = 0
+        skipped_rejected = 0
         
         for pr in prs:
             pr_number = pr['number']
             branch = pr['head']['ref']
+            
+            # Skip PRs with 'rejected' label - these are declined challenges
+            pr_labels = [label.get('name', '').lower() for label in pr.get('labels', [])]
+            if 'rejected' in pr_labels:
+                skipped_rejected += 1
+                continue
             
             # Fetch challenge.yml from the branch
             challenge_yml_data = fetch_challenge_yml(github_token, repo_owner, repo_name, branch)
@@ -335,6 +349,40 @@ def sync_github():
                 supabase.table('challenges').insert(challenge_data).execute()
                 synced_count += 1
         
+        # Delete challenges whose PRs are now closed (not merged)
+        # Get all challenges with pr_number that are not in open PRs and not accepted (merged)
+        # Note: This makes individual API calls per closed PR, which could be optimized
+        # with GraphQL for large-scale usage, but is acceptable for typical CTF workloads.
+        all_challenges = supabase.table('challenges').select('id, pr_number, status').execute()
+        if all_challenges.data:
+            for challenge in all_challenges.data:
+                pr_num = challenge.get('pr_number')
+                status = challenge.get('status')
+                
+                # Skip challenges without pr_number or that are already accepted (merged)
+                if not pr_num or status == 'accepted':
+                    continue
+                
+                # If the PR is not in open PRs, check if it's merged or closed
+                if pr_num not in open_pr_numbers:
+                    # Check PR status on GitHub
+                    pr_check_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/pulls/{pr_num}'
+                    pr_check_response = requests.get(pr_check_url, headers=headers, timeout=30)
+                    
+                    if pr_check_response.status_code == 200:
+                        pr_data = pr_check_response.json()
+                        pr_state = pr_data.get('state')
+                        pr_merged = pr_data.get('merged', False)
+                        
+                        # Delete challenge if PR is closed and not merged
+                        if pr_state == 'closed' and not pr_merged:
+                            supabase.table('challenges').delete().eq('id', challenge['id']).execute()
+                            deleted_count += 1
+                    elif pr_check_response.status_code == 404:
+                        # PR no longer exists (deleted), treat as closed and delete challenge
+                        supabase.table('challenges').delete().eq('id', challenge['id']).execute()
+                        deleted_count += 1
+        
         # Save the last sync timestamp
         last_sync_time = datetime.now(timezone.utc).isoformat()
         supabase.table('settings').upsert({
@@ -344,7 +392,7 @@ def sync_github():
         
         return jsonify({
             'success': True,
-            'message': f'Synced {synced_count} new challenges, updated {updated_count} existing from GitHub',
+            'message': f'Synced {synced_count} new challenges, updated {updated_count} existing, deleted {deleted_count} closed PRs from GitHub',
             'last_sync_time': last_sync_time
         })
     except Exception as e:

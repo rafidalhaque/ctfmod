@@ -257,7 +257,11 @@ def approve_challenge(challenge_id):
 @challenges_bp.route('/challenges/<int:challenge_id>/decline', methods=['POST'])
 @login_required
 def decline_challenge(challenge_id):
-    """Decline a challenge by closing its PR."""
+    """Decline a challenge by converting PR to draft, adding 'rejected' label, and removing from portal.
+    
+    The PR stays as draft on GitHub with a 'rejected' label so the author can see
+    the rejection. The challenge is removed from the portal.
+    """
     supabase = get_supabase_client()
     
     if supabase:
@@ -273,7 +277,6 @@ def decline_challenge(challenge_id):
             if not pr_number:
                 return jsonify({'error': 'No PR associated with this challenge'}), 400
             
-            # Close PR on GitHub
             github_token = current_app.config.get('GITHUB_TOKEN')
             repo_owner = current_app.config.get('GITHUB_REPO_OWNER')
             repo_name = current_app.config.get('GITHUB_REPO_NAME')
@@ -284,17 +287,58 @@ def decline_challenge(challenge_id):
                     'Accept': 'application/vnd.github.v3+json'
                 }
                 
-                close_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/pulls/{pr_number}'
-                close_response = requests.patch(close_url, headers=headers, json={
-                    'state': 'closed'
+                # Add 'rejected' label to the PR
+                labels_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/issues/{pr_number}/labels'
+                labels_response = requests.post(labels_url, headers=headers, json={
+                    'labels': ['rejected']
                 }, timeout=30)
                 
-                if close_response.status_code == 200:
-                    # Update challenge status in database
-                    supabase.table('challenges').update({'status': 'declined'}).eq('id', challenge_id).execute()
-                    return jsonify({'success': True, 'message': 'Challenge declined and PR closed'})
+                # Convert PR to draft using GraphQL API
+                # First, get the PR node ID
+                pr_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/pulls/{pr_number}'
+                pr_response = requests.get(pr_url, headers=headers, timeout=30)
+                
+                if pr_response.status_code == 200:
+                    pr_data = pr_response.json()
+                    pr_node_id = pr_data.get('node_id')
+                    
+                    # Convert to draft using GraphQL
+                    graphql_url = 'https://api.github.com/graphql'
+                    graphql_headers = {
+                        'Authorization': f'bearer {github_token}',
+                        'Content-Type': 'application/json'
+                    }
+                    mutation = '''
+                    mutation ConvertPullRequestToDraft($pullRequestId: ID!) {
+                        convertPullRequestToDraft(input: {pullRequestId: $pullRequestId}) {
+                            pullRequest {
+                                id
+                                isDraft
+                            }
+                        }
+                    }
+                    '''
+                    graphql_response = requests.post(graphql_url, headers=graphql_headers, json={
+                        'query': mutation,
+                        'variables': {'pullRequestId': pr_node_id}
+                    }, timeout=30)
+                    
+                    # Delete challenge from database - rejected challenges should not appear in portal
+                    supabase.table('challenges').delete().eq('id', challenge_id).execute()
+                    
+                    # Check if label was added successfully
+                    label_success = labels_response.status_code in [200, 201]
+                    draft_success = graphql_response.status_code == 200
+                    
+                    message_parts = ['Challenge declined and removed from portal']
+                    if label_success:
+                        message_parts.append("'rejected' label added")
+                    if draft_success:
+                        message_parts.append('PR converted to draft')
+                    
+                    return jsonify({'success': True, 'message': ', '.join(message_parts)})
                 else:
-                    return jsonify({'error': f'Failed to close PR: {close_response.json().get("message", "Unknown error")}'}), 400
+                    return jsonify({'error': f'Failed to get PR info: {pr_response.json().get("message", "Unknown error")}'}), 400
             else:
                 return jsonify({'error': 'GitHub configuration missing'}), 500
                 
