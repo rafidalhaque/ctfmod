@@ -344,6 +344,8 @@ def sync_github():
         
         # Delete challenges whose PRs are now closed (not merged)
         # Get all challenges with pr_number that are not in open PRs and not accepted (merged)
+        # Note: This makes individual API calls per closed PR, which could be optimized
+        # with GraphQL for large-scale usage, but is acceptable for typical CTF workloads.
         all_challenges = supabase.table('challenges').select('id, pr_number, status').execute()
         if all_challenges.data:
             for challenge in all_challenges.data:
@@ -369,6 +371,10 @@ def sync_github():
                         if pr_state == 'closed' and not pr_merged:
                             supabase.table('challenges').delete().eq('id', challenge['id']).execute()
                             deleted_count += 1
+                    elif pr_check_response.status_code == 404:
+                        # PR no longer exists (deleted), treat as closed and delete challenge
+                        supabase.table('challenges').delete().eq('id', challenge['id']).execute()
+                        deleted_count += 1
         
         # Save the last sync timestamp
         last_sync_time = datetime.now(timezone.utc).isoformat()
