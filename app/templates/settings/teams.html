@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Teams - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Teams</h1>
+            <p class="text-base-content/70">View all registered teams and their CTFd credentials</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('settings.participants_list') }}" class="btn btn-outline btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                View Participants
+            </a>
+            <a href="{{ url_for('settings.index') }}" class="btn btn-ghost btn-sm">
+                ← Back to Settings
+            </a>
+        </div>
+    </div>
+
+    <!-- Teams Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <div class="overflow-x-auto">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Team Name</th>
+                            <th>Captain</th>
+                            <th>Members</th>
+                            <th>CTFd Username</th>
+                            <th>CTFd Password</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for team in teams %}
+                        <tr class="hover">
+                            <td>
+                                <div class="font-bold">{{ team.team_name }}</div>
+                                {% if team.project_name %}
+                                <div class="text-sm text-base-content/50">{{ team.project_name }}</div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div>{{ team.captain_name or '-' }}</div>
+                                <div class="text-sm text-base-content/50">{{ team.captain_email or '' }}</div>
+                            </td>
+                            <td>
+                                <span class="badge badge-ghost">{{ team.member_count }} members</span>
+                            </td>
+                            <td>
+                                {% if team.credentials %}
+                                <code class="bg-base-200 px-2 py-1 rounded text-sm">{{ team.credentials.ctfd_team_username }}</code>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if team.credentials %}
+                                <div class="flex items-center gap-2">
+                                    <code class="bg-warning/20 text-warning px-2 py-1 rounded text-sm font-mono password-display" data-password="{{ team.credentials.ctfd_team_password }}">
+                                        ••••••••
+                                    </code>
+                                    <button onclick="togglePassword(this)" class="btn btn-xs btn-ghost">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                    </button>
+                                    <button onclick="copyPassword(this)" class="btn btn-xs btn-ghost" data-password="{{ team.credentials.ctfd_team_password }}">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if team.status == 'approved' %}
+                                <span class="badge badge-success badge-sm">Approved</span>
+                                {% elif team.status == 'pending' %}
+                                <span class="badge badge-warning badge-sm">Pending</span>
+                                {% elif team.status == 'rejected' %}
+                                <span class="badge badge-error badge-sm">Rejected</span>
+                                {% else %}
+                                <span class="badge badge-ghost badge-sm">{{ team.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary">
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-base-content/50 py-8">
+                                No teams found.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 text-sm text-base-content/50">
+                <p>Total teams: {{ teams|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePassword(btn) {
+    const row = btn.closest('tr');
+    const display = row.querySelector('.password-display');
+    const password = display.dataset.password;
+    
+    if (display.textContent === '••••••••') {
+        display.textContent = password;
+    } else {
+        display.textContent = '••••••••';
+    }
+}
+
+function copyPassword(btn) {
+    const password = btn.dataset.password;
+    navigator.clipboard.writeText(password).then(() => {
+        // Show tooltip or feedback
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>';
+        setTimeout(() => {
+            btn.innerHTML = originalText;
+        }, 1500);
+    });
+}
+</script>
+{% endblock %}

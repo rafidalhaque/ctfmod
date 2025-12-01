@@ -17,6 +17,7 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - ⚙️ **Dynamic Settings**: All configurations manageable from the UI
 - 📧 **SMTP Email Configuration**: Configure SMTP settings for sending emails with test functionality
 - ✉️ **Dynamic Email Designer**: Create and manage email templates with variable placeholders
+- 👥 **Teams & Participants Management**: View teams, members, and their CTFd credentials (passwords in plain text)
 
 ## Tech Stack
 
@@ -58,6 +59,7 @@ cp .env.example .env
      2. `002_add_rounds_table.sql` - Adds rounds table and round support for targets
      3. `003_add_round_schedule.sql` - Adds schedule fields to rounds (start_datetime, timezone)
      4. `004_add_email_templates.sql` - Adds email templates table for dynamic email designer
+     5. `005_add_teams_and_credentials.sql` - Adds teams, team_members, and CTFd credentials tables
    - Update `.env` with your Supabase URL and key
 
 6. Run the application:
@@ -84,6 +86,13 @@ Adds support for organizing challenges into rounds:
 ### Migration 004: Email Templates
 Adds support for dynamic email templates:
 - `email_templates` - Stores email templates with subject, body, and variable placeholders
+
+### Migration 005: Teams and Credentials
+Adds support for teams and participant management:
+- `teams` - Stores team information (name, captain, contact, status, etc.)
+- `team_members` - Stores team member details (name, email, institution, etc.)
+- `ctfd_team_credentials` - Stores CTFd team-level credentials (username and password in plain text)
+- `ctfd_user_credentials` - Stores CTFd user-level credentials (username and password in plain text)
 
 Run migrations in your Supabase SQL Editor in numerical order.
 
@@ -157,6 +166,62 @@ CREATE TABLE email_templates (
 );
 ```
 
+### Teams Table
+```sql
+CREATE TABLE teams (
+    id BIGSERIAL PRIMARY KEY,
+    registration_id BIGINT UNIQUE,
+    team_name VARCHAR(255) NOT NULL,
+    project_name TEXT,
+    captain_name VARCHAR(255),
+    captain_email VARCHAR(255),
+    contact_name VARCHAR(255),
+    contact_email VARCHAR(255),
+    contact_number VARCHAR(50),
+    status VARCHAR(50) DEFAULT 'pending',
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### Team Members Table
+```sql
+CREATE TABLE team_members (
+    id BIGSERIAL PRIMARY KEY,
+    team_id BIGINT REFERENCES teams(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    full_name VARCHAR(255),
+    institution VARCHAR(255),
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    role VARCHAR(50),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### CTFd Team Credentials Table
+```sql
+CREATE TABLE ctfd_team_credentials (
+    id BIGSERIAL PRIMARY KEY,
+    team_id BIGINT REFERENCES teams(id) ON DELETE CASCADE,
+    ctfd_team_username VARCHAR(255) UNIQUE NOT NULL,
+    ctfd_team_password TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+### CTFd User Credentials Table
+```sql
+CREATE TABLE ctfd_user_credentials (
+    id BIGSERIAL PRIMARY KEY,
+    member_id BIGINT REFERENCES team_members(id) ON DELETE CASCADE,
+    ctfd_username VARCHAR(255) UNIQUE NOT NULL,
+    ctfd_password TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
 ## Environment Variables
 
 | Variable | Description |
@@ -189,6 +254,8 @@ CREATE TABLE email_templates (
 15. **Test Email**: Send a test email to verify SMTP configuration
 16. **Email Templates**: Create dynamic email templates with variable placeholders like `{{user_name}}`, `{{event_name}}`
 17. **Template Preview**: Preview email templates with sample data before saving
+18. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
+19. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
 
 ## Stats API
 

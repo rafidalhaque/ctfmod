@@ -723,3 +723,102 @@ def preview_email_template():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams')
+@login_required
+def teams_list():
+    """List all teams with their credentials."""
+    supabase = get_supabase_client()
+    teams = []
+    
+    if supabase:
+        try:
+            # Fetch all teams
+            teams_response = supabase.table('teams').select('*').order('team_name').execute()
+            teams = teams_response.data if teams_response.data else []
+            
+            # Fetch team credentials and attach to teams
+            for team in teams:
+                # Get team credentials
+                creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', team['id']).execute()
+                team['credentials'] = creds_response.data[0] if creds_response.data else None
+                
+                # Get member count
+                members_response = supabase.table('team_members').select('id', count='exact').eq('team_id', team['id']).execute()
+                team['member_count'] = members_response.count if hasattr(members_response, 'count') else len(members_response.data) if members_response.data else 0
+                
+        except Exception as e:
+            flash(f'Error fetching teams: {str(e)}', 'error')
+    
+    return render_template('settings/teams.html', teams=teams)
+
+
+@settings_bp.route('/settings/teams/<int:team_id>')
+@login_required
+def team_detail(team_id):
+    """View team details with members and credentials."""
+    supabase = get_supabase_client()
+    team = None
+    members = []
+    team_credentials = None
+    
+    if supabase:
+        try:
+            # Fetch team
+            team_response = supabase.table('teams').select('*').eq('id', team_id).execute()
+            if team_response.data:
+                team = team_response.data[0]
+            else:
+                flash('Team not found', 'error')
+                return redirect(url_for('settings.teams_list'))
+            
+            # Fetch team credentials
+            creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', team_id).execute()
+            team_credentials = creds_response.data[0] if creds_response.data else None
+            
+            # Fetch team members with their credentials
+            members_response = supabase.table('team_members').select('*').eq('team_id', team_id).execute()
+            members = members_response.data if members_response.data else []
+            
+            # Attach user credentials to each member
+            for member in members:
+                user_creds_response = supabase.table('ctfd_user_credentials').select('*').eq('member_id', member['id']).execute()
+                member['credentials'] = user_creds_response.data[0] if user_creds_response.data else None
+                
+        except Exception as e:
+            flash(f'Error fetching team details: {str(e)}', 'error')
+    
+    return render_template('settings/team_detail.html', team=team, members=members, team_credentials=team_credentials)
+
+
+@settings_bp.route('/settings/participants')
+@login_required
+def participants_list():
+    """List all participants with their credentials."""
+    supabase = get_supabase_client()
+    participants = []
+    
+    if supabase:
+        try:
+            # Fetch all team members
+            members_response = supabase.table('team_members').select('*').order('name').execute()
+            participants = members_response.data if members_response.data else []
+            
+            # Get team names and credentials for each participant
+            for participant in participants:
+                # Get team name
+                if participant.get('team_id'):
+                    team_response = supabase.table('teams').select('team_name').eq('id', participant['team_id']).execute()
+                    participant['team_name'] = team_response.data[0]['team_name'] if team_response.data else 'Unknown'
+                else:
+                    participant['team_name'] = 'No Team'
+                
+                # Get user credentials
+                creds_response = supabase.table('ctfd_user_credentials').select('*').eq('member_id', participant['id']).execute()
+                participant['credentials'] = creds_response.data[0] if creds_response.data else None
+                
+        except Exception as e:
+            flash(f'Error fetching participants: {str(e)}', 'error')
+    
+    return render_template('settings/participants.html', participants=participants)
