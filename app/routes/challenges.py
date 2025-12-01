@@ -8,6 +8,64 @@ import os
 challenges_bp = Blueprint('challenges', __name__)
 
 
+def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token, base_path=None):
+    """
+    Recursively fetch all files and folders in the challenge directory.
+    Returns a list of artifact dictionaries with name, type, path, and children.
+    """
+    # Validate required parameters
+    if not repo_owner or not repo_name or not github_token or not path:
+        return []
+    
+    if base_path is None:
+        base_path = path
+    
+    artifacts = []
+    headers = {
+        'Authorization': f'token {github_token}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    
+    contents_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{path}?ref={branch}'
+    
+    try:
+        response = requests.get(contents_url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            items = response.json()
+            if isinstance(items, list):
+                for item in items:
+                    item_name = item.get('name', '')
+                    item_type = item.get('type', '')
+                    item_path = item.get('path', '')
+                    
+                    # Calculate relative path from challenge directory
+                    relative_path = item_path[len(base_path):].lstrip('/')
+                    
+                    artifact = {
+                        'name': item_name,
+                        'type': item_type,
+                        'path': item_path,
+                        'relative_path': relative_path,
+                        'size': item.get('size', 0),
+                        'download_url': item.get('download_url'),
+                        'html_url': item.get('html_url'),
+                        'children': []
+                    }
+                    
+                    # Recursively fetch contents of directories
+                    if item_type == 'dir':
+                        artifact['children'] = _fetch_artifacts_recursive(
+                            repo_owner, repo_name, item_path, branch, github_token, base_path
+                        )
+                    
+                    artifacts.append(artifact)
+    except requests.exceptions.RequestException:
+        # Network or API errors - return empty list silently
+        pass
+    
+    return artifacts
+
+
 @challenges_bp.route('/challenges')
 @login_required
 def list_challenges():
@@ -77,6 +135,7 @@ def view_challenge(challenge_id):
     readme_content = None
     challenge_yml = None
     rounds = []
+    artifacts = []
     
     if supabase:
         try:
@@ -123,6 +182,11 @@ def view_challenge(challenge_id):
                             challenge_yml = yaml.safe_load(yml_response.text)
                     except Exception:
                         pass
+                    
+                    # Fetch artifacts (files and folders in challenge directory)
+                    artifacts = _fetch_artifacts_recursive(
+                        repo_owner, repo_name, f'{category}/{name}', branch, github_token
+                    )
                         
         except Exception as e:
             flash(f'Error fetching challenge: {str(e)}', 'error')
@@ -135,7 +199,8 @@ def view_challenge(challenge_id):
                          challenge=challenge,
                          readme_content=readme_content,
                          challenge_yml=challenge_yml,
-                         rounds=rounds)
+                         rounds=rounds,
+                         artifacts=artifacts)
 
 
 @challenges_bp.route('/challenges/<int:challenge_id>/approve', methods=['POST'])
