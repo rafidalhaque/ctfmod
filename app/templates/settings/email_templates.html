@@ -37,28 +37,28 @@
             <div class="mb-3">
                 <p class="text-sm font-semibold text-base-content/80 mb-2">Team & Participant Variables:</p>
                 <div class="flex flex-wrap gap-2">
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_name')">{{team_name}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_ctfd_username')">{{team_ctfd_username}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_ctfd_password')">{{team_ctfd_password}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_name')">{{user_name}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_email')">{{user_email}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_ctfd_username')">{{user_ctfd_username}}</code>
-                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_ctfd_password')">{{user_ctfd_password}}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_name')">{{ '{{team_name}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_ctfd_username')">{{ '{{team_ctfd_username}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('team_ctfd_password')">{{ '{{team_ctfd_password}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_name')">{{ '{{user_name}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_email')">{{ '{{user_email}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_ctfd_username')">{{ '{{user_ctfd_username}}' }}</code>
+                    <code class="badge badge-primary badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('user_ctfd_password')">{{ '{{user_ctfd_password}}' }}</code>
                 </div>
             </div>
             
             <div class="mb-3">
                 <p class="text-sm font-semibold text-base-content/80 mb-2">Event & General Variables:</p>
                 <div class="flex flex-wrap gap-2">
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('event_name')">{{event_name}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('site_name')">{{site_name}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('challenge_name')">{{challenge_name}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('category')">{{category}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('difficulty')">{{difficulty}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('setter')">{{setter}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('round_name')">{{round_name}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('date')">{{date}}</code>
-                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('time')">{{time}}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('event_name')">{{ '{{event_name}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('site_name')">{{ '{{site_name}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('challenge_name')">{{ '{{challenge_name}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('category')">{{ '{{category}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('difficulty')">{{ '{{difficulty}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('setter')">{{ '{{setter}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('round_name')">{{ '{{round_name}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('date')">{{ '{{date}}' }}</code>
+                    <code class="badge badge-outline cursor-pointer hover:badge-primary" onclick="copyVariable('time')">{{ '{{time}}' }}</code>
                 </div>
             </div>
             <p class="text-base-content/50 text-xs mt-2">Click a variable to copy it to clipboard</p>
@@ -354,7 +354,7 @@
 <script>
 // Copy variable to clipboard
 function copyVariable(varName) {
-    const variable = '{{' + varName + '}}';
+    const variable = '{{ "{{" }}' + varName + '{{ "}}" }}';
     navigator.clipboard.writeText(variable).then(() => {
         // Show toast or visual feedback
         alert('Copied: ' + variable);
