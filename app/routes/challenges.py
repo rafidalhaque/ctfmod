@@ -257,7 +257,10 @@ def approve_challenge(challenge_id):
 @challenges_bp.route('/challenges/<int:challenge_id>/decline', methods=['POST'])
 @login_required
 def decline_challenge(challenge_id):
-    """Decline a challenge by closing its PR."""
+    """Decline a challenge by closing its PR and deleting it from the portal.
+    
+    Closed PRs are treated as deleted - they should not appear in the portal.
+    """
     supabase = get_supabase_client()
     
     if supabase:
@@ -290,9 +293,9 @@ def decline_challenge(challenge_id):
                 }, timeout=30)
                 
                 if close_response.status_code == 200:
-                    # Update challenge status in database
-                    supabase.table('challenges').update({'status': 'declined'}).eq('id', challenge_id).execute()
-                    return jsonify({'success': True, 'message': 'Challenge declined and PR closed'})
+                    # Delete challenge from database since closed PRs should not appear in portal
+                    supabase.table('challenges').delete().eq('id', challenge_id).execute()
+                    return jsonify({'success': True, 'message': 'Challenge declined, PR closed, and removed from portal'})
                 else:
                     return jsonify({'error': f'Failed to close PR: {close_response.json().get("message", "Unknown error")}'}), 400
             else:
