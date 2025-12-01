@@ -252,10 +252,18 @@ CREATE TABLE ctfd_user_credentials (
 13. **Stats API**: Generate an API key in Settings to access statistics via public API
 14. **SMTP Configuration**: Configure email server settings (host, port, username, password, TLS/SSL) in Settings
 15. **Test Email**: Send a test email to verify SMTP configuration
-16. **Email Templates**: Create dynamic email templates with variable placeholders like `{{user_name}}`, `{{event_name}}`
+16. **Email Templates**: Create multiple dynamic email templates with variable placeholders
 17. **Template Preview**: Preview email templates with sample data before saving
-18. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
-19. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
+18. **Bulk Email Sending**: Send emails to all participants using any template with automatic variable substitution
+19. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
+20. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
+
+### Email Template Variables
+
+Available placeholders for email templates:
+- **Team/Participant**: `{{team_name}}`, `{{team_ctfd_username}}`, `{{team_ctfd_password}}`, `{{user_name}}`, `{{user_email}}`, `{{user_ctfd_username}}`, `{{user_ctfd_password}}`
+- **Event**: `{{event_name}}`, `{{site_name}}`, `{{date}}`, `{{time}}`
+- **Challenge**: `{{challenge_name}}`, `{{category}}`, `{{difficulty}}`, `{{setter}}`, `{{round_name}}`
 
 ## Stats API
 

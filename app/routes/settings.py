@@ -697,6 +697,11 @@ def preview_email_template():
         sample_variables = {
             'user_name': 'John Doe',
             'user_email': 'john@example.com',
+            'user_ctfd_username': 'john_doe',
+            'user_ctfd_password': 'SecurePass123',
+            'team_name': 'Sample Team',
+            'team_ctfd_username': 'sample_team',
+            'team_ctfd_password': 'TeamPass456',
             'event_name': 'Science Fest CTF',
             'site_name': 'CTF Manager',
             'challenge_name': 'Sample Challenge',
@@ -723,6 +728,194 @@ def preview_email_template():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-templates/bulk-send', methods=['POST'])
+@login_required
+def bulk_send_email():
+    """Send bulk emails to all participants using a template."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        template_id = data.get('template_id')
+        include_team_captains = data.get('include_team_captains', False)
+        
+        if not template_id:
+            return jsonify({'error': 'Template ID is required'}), 400
+        
+        # Fetch the template
+        template_response = supabase.table('email_templates').select('*').eq('id', template_id).execute()
+        if not template_response.data:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        template = template_response.data[0]
+        
+        # Fetch SMTP settings
+        settings_response = supabase.table('settings').select('*').execute()
+        settings = {}
+        if settings_response.data:
+            for setting in settings_response.data:
+                settings[setting['key']] = setting['value']
+        
+        smtp_host = settings.get('smtp_host', '')
+        smtp_port = int(settings.get('smtp_port', 587))
+        smtp_username = settings.get('smtp_username', '')
+        smtp_password = settings.get('smtp_password', '')
+        sender_email = settings.get('smtp_sender_email', '')
+        sender_name = settings.get('smtp_sender_name', 'CTF Manager')
+        use_tls = settings.get('smtp_use_tls', 'true').lower() == 'true'
+        use_ssl = settings.get('smtp_use_ssl', 'false').lower() == 'true'
+        event_name = settings.get('event_name', 'CTF Event')
+        site_name = settings.get('site_name', 'CTF Manager')
+        
+        if not smtp_host or not sender_email:
+            return jsonify({'error': 'SMTP settings not configured. Please configure SMTP first.'}), 400
+        
+        # Fetch all team members with their credentials
+        members_response = supabase.table('team_members').select('*').execute()
+        members = members_response.data if members_response.data else []
+        
+        # Fetch teams for team name lookup
+        teams_response = supabase.table('teams').select('*').execute()
+        teams = {team['id']: team for team in (teams_response.data or [])}
+        
+        # Fetch team credentials
+        team_creds_response = supabase.table('ctfd_team_credentials').select('*').execute()
+        team_credentials = {cred['team_id']: cred for cred in (team_creds_response.data or [])}
+        
+        # Fetch user credentials
+        user_creds_response = supabase.table('ctfd_user_credentials').select('*').execute()
+        user_credentials = {cred['member_id']: cred for cred in (user_creds_response.data or [])}
+        
+        # Prepare recipients
+        recipients = []
+        for member in members:
+            if member.get('email'):
+                team = teams.get(member.get('team_id'), {})
+                team_cred = team_credentials.get(member.get('team_id'), {})
+                user_cred = user_credentials.get(member.get('id'), {})
+                
+                recipients.append({
+                    'email': member['email'],
+                    'user_name': member.get('name', ''),
+                    'user_email': member.get('email', ''),
+                    'user_ctfd_username': user_cred.get('ctfd_username', ''),
+                    'user_ctfd_password': user_cred.get('ctfd_password', ''),
+                    'team_name': team.get('team_name', ''),
+                    'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
+                    'team_ctfd_password': team_cred.get('ctfd_team_password', '')
+                })
+        
+        # Add team captains if requested
+        if include_team_captains:
+            for team_id, team in teams.items():
+                if team.get('captain_email'):
+                    team_cred = team_credentials.get(team_id, {})
+                    # Check if captain email is not already in recipients
+                    if not any(r['email'] == team['captain_email'] for r in recipients):
+                        recipients.append({
+                            'email': team['captain_email'],
+                            'user_name': team.get('captain_name', ''),
+                            'user_email': team.get('captain_email', ''),
+                            'user_ctfd_username': '',
+                            'user_ctfd_password': '',
+                            'team_name': team.get('team_name', ''),
+                            'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
+                            'team_ctfd_password': team_cred.get('ctfd_team_password', '')
+                        })
+        
+        if not recipients:
+            return jsonify({'error': 'No recipients found with valid email addresses'}), 400
+        
+        # Connect to SMTP server
+        server = None
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                if use_tls:
+                    server.starttls()
+            
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            
+            sent_count = 0
+            failed_count = 0
+            
+            # Import re at start of loop for HTML stripping
+            import re
+            
+            for recipient in recipients:
+                try:
+                    # Replace variables in template
+                    subject = template['subject']
+                    body = template['body']
+                    
+                    variables = {
+                        'user_name': recipient['user_name'],
+                        'user_email': recipient['user_email'],
+                        'user_ctfd_username': recipient['user_ctfd_username'],
+                        'user_ctfd_password': recipient['user_ctfd_password'],
+                        'team_name': recipient['team_name'],
+                        'team_ctfd_username': recipient['team_ctfd_username'],
+                        'team_ctfd_password': recipient['team_ctfd_password'],
+                        'event_name': event_name,
+                        'site_name': site_name,
+                        'date': datetime.now().strftime('%Y-%m-%d'),
+                        'time': datetime.now().strftime('%H:%M')
+                    }
+                    
+                    for var_name, var_value in variables.items():
+                        subject = subject.replace('{{' + var_name + '}}', str(var_value or ''))
+                        body = body.replace('{{' + var_name + '}}', str(var_value or ''))
+                    
+                    # Create message
+                    msg = MIMEMultipart('alternative')
+                    msg['Subject'] = subject
+                    msg['From'] = f'{sender_name} <{sender_email}>'
+                    msg['To'] = recipient['email']
+                    
+                    # Plain text version - strip HTML tags
+                    text_content = body.replace('<br>', '\n').replace('<p>', '\n').replace('</p>', '\n')
+                    text_content = re.sub('<[^<]+?>', '', text_content)
+                    
+                    msg.attach(MIMEText(text_content, 'plain'))
+                    msg.attach(MIMEText(body, 'html'))
+                    
+                    server.sendmail(sender_email, recipient['email'], msg.as_string())
+                    sent_count += 1
+                except Exception:
+                    failed_count += 1
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+        
+        return jsonify({
+            'success': True,
+            'sent': sent_count,
+            'failed': failed_count,
+            'total': len(recipients),
+            'message': f'Sent {sent_count} emails, {failed_count} failed'
+        })
+        
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'SMTP authentication failed. Check username and password.'}), 400
+    except smtplib.SMTPConnectError:
+        return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to send bulk emails: {str(e)}'}), 500
 
 
 @settings_bp.route('/settings/teams')
