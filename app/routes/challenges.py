@@ -13,6 +13,10 @@ def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token
     Recursively fetch all files and folders in the challenge directory.
     Returns a list of artifact dictionaries with name, type, path, and children.
     """
+    # Validate required parameters
+    if not repo_owner or not repo_name or not github_token or not path:
+        return []
+    
     if base_path is None:
         base_path = path
     
@@ -55,7 +59,8 @@ def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token
                         )
                     
                     artifacts.append(artifact)
-    except Exception:
+    except requests.exceptions.RequestException:
+        # Network or API errors - return empty list silently
         pass
     
     return artifacts
