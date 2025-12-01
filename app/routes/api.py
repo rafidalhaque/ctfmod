@@ -13,6 +13,18 @@ api_bp = Blueprint('api', __name__)
 MAX_YAML_SIZE = 100 * 1024
 
 
+def safe_int(value, default=None):
+    """Attempt to convert value to int, returning default if conversion fails.
+    
+    Useful for safely parsing numeric values from YAML that may contain
+    non-integer placeholders like 'tbd'.
+    """
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def fetch_challenge_yml(github_token, repo_owner, repo_name, branch):
     """Fetch and parse challenge.yml from a branch.
     
@@ -274,11 +286,16 @@ def sync_github():
                 raw_difficulty = yml.get('Difficulty') or yml.get('difficulty') or 'Medium'
                 difficulty = raw_difficulty.capitalize() if isinstance(raw_difficulty, str) else 'Medium'
                 
+                # Get points value from yml, using safe_int to handle non-integer values
+                # Non-integer values (e.g., "tbd") result in -1 to indicate invalid/pending points
+                points_value = yml.get('Point') or yml.get('point') or yml.get('Points') or yml.get('points')
+                points = safe_int(points_value, default=-1)
+                
                 challenge_data = {
                     'name': yml.get('Name') or yml.get('name') or pr['title'],
                     'category': category,
                     'difficulty': difficulty,
-                    'points': yml.get('Point') or yml.get('point') or yml.get('Points') or yml.get('points') or 100,
+                    'points': points,
                     'flag': yml.get('Flag') or yml.get('flag') or '',
                     'description': yml.get('Description') or yml.get('description') or pr.get('body', ''),
                     'hint': yml.get('Hint') or yml.get('hint') or '',
