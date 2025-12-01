@@ -272,10 +272,17 @@ def sync_github():
         synced_count = 0
         updated_count = 0
         deleted_count = 0
+        skipped_rejected = 0
         
         for pr in prs:
             pr_number = pr['number']
             branch = pr['head']['ref']
+            
+            # Skip PRs with 'rejected' label - these are declined challenges
+            pr_labels = [label.get('name', '').lower() for label in pr.get('labels', [])]
+            if 'rejected' in pr_labels:
+                skipped_rejected += 1
+                continue
             
             # Fetch challenge.yml from the branch
             challenge_yml_data = fetch_challenge_yml(github_token, repo_owner, repo_name, branch)
