@@ -288,8 +288,9 @@ def sync_github():
                 
                 # Get points value from yml, using safe_int to handle non-integer values
                 # Non-integer values (e.g., "tbd") result in -1 to indicate invalid/pending points
+                # If no points key is found, default to 100
                 points_value = yml.get('Point') or yml.get('point') or yml.get('Points') or yml.get('points')
-                points = safe_int(points_value, default=-1)
+                points = safe_int(points_value, default=-1) if points_value is not None else 100
                 
                 challenge_data = {
                     'name': yml.get('Name') or yml.get('name') or pr['title'],
