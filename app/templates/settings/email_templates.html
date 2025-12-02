@@ -1198,7 +1198,7 @@ function copyCid(filename) {
 
 function copyCidTag(filename) {
     const altText = filename.split('.')[0] || 'Image';
-    const cidTag = `<img src="{{cid:${filename}}}" alt="${altText}" style="max-width: 100%;" />`;
+    const cidTag = `<img src="{{ '{{' }}cid:${filename}{{ '}}' }}" alt="${altText}" style="max-width: 100%;" />`;
     navigator.clipboard.writeText(cidTag).then(() => {
         alert('Copied! Paste this into your email template body to embed the image inline:\n\n' + cidTag);
     }).catch(() => {
