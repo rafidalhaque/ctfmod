@@ -1008,7 +1008,7 @@ function removeSelectedAttachment(attachmentId) {
 }
 
 function copyImageHtml(filename) {
-    const html = `<img src="/static/uploads/email_attachments/${filename}" alt="Image" style="max-width: 100%;" />`;
+    const html = `<img src="/uploads/email_attachments/${filename}" alt="Image" style="max-width: 100%;" />`;
     navigator.clipboard.writeText(html).then(() => {
         alert('Copied! Paste this HTML into your email template body:\n\n' + html);
     }).catch(() => {

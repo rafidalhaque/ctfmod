@@ -860,8 +860,8 @@ def test_send_email_template():
         upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
         
         # Find and process inline images in the template body
-        # Look for patterns like src="/static/uploads/email_attachments/..." or src="{{image:filename}}"
-        img_pattern = r'src=["\'](?:/static/uploads/email_attachments/|{{image:)([^"\']+)["\']'
+        # Look for patterns like src="/uploads/email_attachments/..." or src="{{image:filename}}"
+        img_pattern = r'src=["\'](?:/uploads/email_attachments/|{{image:)([^"\']+)["\']'
         matches = re.findall(img_pattern, body)
         
         for i, match in enumerate(matches):
@@ -872,7 +872,7 @@ def test_send_email_template():
                 cid = f'image{i}'
                 # Replace the src with cid reference
                 body = re.sub(
-                    r'src=["\'](?:/static/uploads/email_attachments/|{{image:)' + re.escape(match) + r'["\']',
+                    r'src=["\'](?:/uploads/email_attachments/|{{image:)' + re.escape(match) + r'["\']',
                     f'src="cid:{cid}"',
                     body
                 )
