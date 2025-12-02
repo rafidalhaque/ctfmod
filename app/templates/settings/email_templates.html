@@ -296,7 +296,7 @@
 
 <!-- Bulk Send Modal -->
 <dialog id="bulkSendModal" class="modal">
-    <div class="modal-box max-w-lg">
+    <div class="modal-box max-w-2xl">
         <h3 class="font-bold text-lg">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -320,6 +320,22 @@
                     <input type="checkbox" id="sendToTeamCaptains" class="checkbox checkbox-primary" />
                     <span class="label-text">Also send to team captains</span>
                 </label>
+            </div>
+            
+            <!-- Attachments Section for Bulk Send -->
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">File Attachments (optional)</span>
+                </label>
+                <div id="bulkSendSelectedAttachments" class="flex flex-wrap gap-2 mb-2">
+                    <p class="text-sm text-base-content/50">No attachments selected</p>
+                </div>
+                <button type="button" onclick="showBulkAttachmentManager()" class="btn btn-outline btn-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                    </svg>
+                    Manage Attachments
+                </button>
             </div>
             
             <div id="bulkSendStatus" class="hidden">
@@ -477,7 +493,7 @@
                 </svg>
                 Images (for inline embedding)
             </h4>
-            <p class="text-xs text-base-content/50 mb-2">Click "Copy HTML" to get the image tag for use in template body</p>
+            <p class="text-xs text-base-content/50 mb-2">Click "Copy CID" to get the CID tag for embedding images inline in emails. The CID format ensures images display correctly in email clients.</p>
             <div id="imageAttachmentsList" class="grid grid-cols-2 md:grid-cols-3 gap-2">
                 <!-- Image attachments will be listed here -->
             </div>
@@ -692,6 +708,8 @@ async function previewTemplate(templateId) {
 }
 
 // Bulk Send Functions
+let bulkSelectedAttachments = [];
+
 function showBulkSendModal(templateId, templateName) {
     document.getElementById('bulkSendTemplateId').value = templateId;
     document.getElementById('bulkSendTemplateName').textContent = templateName;
@@ -700,11 +718,85 @@ function showBulkSendModal(templateId, templateName) {
     document.getElementById('bulkSendStartBtn').classList.remove('hidden');
     document.getElementById('bulkSendStartBtn').disabled = false;
     document.getElementById('bulkSendCancelBtn').textContent = 'Cancel';
+    bulkSelectedAttachments = [];
+    updateBulkSelectedAttachmentsDisplay();
     document.getElementById('bulkSendModal').showModal();
 }
 
 function closeBulkSendModal() {
     document.getElementById('bulkSendModal').close();
+}
+
+function updateBulkSelectedAttachmentsDisplay() {
+    const container = document.getElementById('bulkSendSelectedAttachments');
+    if (bulkSelectedAttachments.length === 0) {
+        container.innerHTML = '<p class="text-sm text-base-content/50">No attachments selected</p>';
+    } else {
+        const selectedFiles = allAttachments.filter(a => bulkSelectedAttachments.includes(a.id));
+        container.innerHTML = selectedFiles.map(file => `
+            <div class="badge badge-primary gap-1">
+                ${file.original_filename}
+                <button onclick="removeBulkSelectedAttachment(${file.id})" class="btn btn-xs btn-ghost p-0">×</button>
+            </div>
+        `).join('');
+    }
+}
+
+function removeBulkSelectedAttachment(attachmentId) {
+    const index = bulkSelectedAttachments.indexOf(attachmentId);
+    if (index > -1) {
+        bulkSelectedAttachments.splice(index, 1);
+    }
+    updateBulkSelectedAttachmentsDisplay();
+}
+
+async function showBulkAttachmentManager() {
+    document.getElementById('attachmentManagerModal').showModal();
+    await loadAttachments();
+    // Update checkboxes to reflect bulk selected attachments
+    renderAttachmentListsForBulk();
+}
+
+function renderAttachmentListsForBulk() {
+    const fileList = document.getElementById('fileAttachmentsList');
+    const files = allAttachments.filter(a => !a.is_image);
+    
+    if (files.length === 0) {
+        fileList.innerHTML = '<p class="text-sm text-base-content/50">No files uploaded yet</p>';
+    } else {
+        fileList.innerHTML = files.map(file => `
+            <div class="flex items-center justify-between p-2 bg-base-200 rounded-lg">
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" class="checkbox checkbox-sm bulk-file-checkbox" 
+                           data-attachment-id="${file.id}"
+                           ${bulkSelectedAttachments.includes(file.id) ? 'checked' : ''}
+                           onchange="toggleBulkAttachment(${file.id})" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <div>
+                        <p class="text-sm font-medium">${file.original_filename}</p>
+                        <p class="text-xs text-base-content/50">${formatFileSize(file.file_size)}</p>
+                    </div>
+                </div>
+                <button onclick="deleteAttachment(${file.id})" class="btn btn-xs btn-ghost btn-error">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
+        `).join('');
+    }
+}
+
+function toggleBulkAttachment(attachmentId) {
+    const index = bulkSelectedAttachments.indexOf(attachmentId);
+    if (index > -1) {
+        bulkSelectedAttachments.splice(index, 1);
+    } else {
+        bulkSelectedAttachments.push(attachmentId);
+    }
+    updateBulkSelectedAttachmentsDisplay();
 }
 
 async function startBulkSend() {
@@ -725,7 +817,8 @@ async function startBulkSend() {
             },
             body: JSON.stringify({
                 template_id: templateId,
-                include_team_captains: includeTeamCaptains
+                include_team_captains: includeTeamCaptains,
+                attachments: bulkSelectedAttachments
             })
         });
         
@@ -923,9 +1016,15 @@ function renderAttachmentLists() {
                 </figure>
                 <div class="card-body p-2">
                     <p class="text-xs truncate" title="${img.original_filename}">${img.original_filename}</p>
-                    <div class="flex gap-1">
+                    <div class="text-xs text-base-content/50 mb-1">
+                        <span class="font-mono bg-base-300 px-1 rounded cursor-pointer" onclick="copyCid('${img.stored_filename}')" title="Click to copy CID">CID: ${img.stored_filename}</span>
+                    </div>
+                    <div class="flex gap-1 flex-wrap">
                         <button onclick="copyImageHtml('${img.stored_filename}')" class="btn btn-xs btn-outline flex-1" title="Copy HTML for inline image">
                             Copy HTML
+                        </button>
+                        <button onclick="copyCidTag('${img.stored_filename}')" class="btn btn-xs btn-primary flex-1" title="Copy CID tag for email template">
+                            Copy CID
                         </button>
                         <button onclick="deleteAttachment(${img.id})" class="btn btn-xs btn-ghost btn-error">
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1008,7 +1107,8 @@ function removeSelectedAttachment(attachmentId) {
 }
 
 function copyImageHtml(filename) {
-    const html = `<img src="/uploads/email_attachments/${filename}" alt="Image" style="max-width: 100%;" />`;
+    const altText = filename.split('.')[0] || 'Image';
+    const html = `<img src="/uploads/email_attachments/${filename}" alt="${altText}" style="max-width: 100%;" />`;
     navigator.clipboard.writeText(html).then(() => {
         alert('Copied! Paste this HTML into your email template body:\n\n' + html);
     }).catch(() => {
@@ -1086,6 +1186,24 @@ async function deleteAttachment(attachmentId) {
     } catch (error) {
         alert('Error deleting attachment: ' + error.message);
     }
+}
+
+function copyCid(filename) {
+    navigator.clipboard.writeText(filename).then(() => {
+        alert('CID copied: ' + filename);
+    }).catch(() => {
+        prompt('Copy this CID:', filename);
+    });
+}
+
+function copyCidTag(filename) {
+    const altText = filename.split('.')[0] || 'Image';
+    const cidTag = `<img src="{{cid:${filename}}}" alt="${altText}" style="max-width: 100%;" />`;
+    navigator.clipboard.writeText(cidTag).then(() => {
+        alert('Copied! Paste this into your email template body to embed the image inline:\n\n' + cidTag);
+    }).catch(() => {
+        prompt('Copy this CID tag to your template:', cidTag);
+    });
 }
 </script>
 {% endblock %}
