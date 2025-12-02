@@ -1,11 +1,28 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_from_directory
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 import secrets
+import os
+import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from werkzeug.utils import secure_filename
 
 settings_bp = Blueprint('settings', __name__)
+
+# Allowed file extensions for email attachments
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip'}
+ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+
+def allowed_file(filename):
+    """Check if a file has an allowed extension."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def allowed_image(filename):
+    """Check if a file is an allowed image type."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
 def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
@@ -737,6 +754,9 @@ def test_send_email_template():
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
+    from email.mime.base import MIMEBase
+    from email.mime.image import MIMEImage
+    from email import encoders
     import re
     
     supabase = get_supabase_client()
@@ -748,6 +768,7 @@ def test_send_email_template():
         data = request.json
         template_id = data.get('template_id')
         test_email = data.get('test_email', '').strip()
+        attachment_ids = data.get('attachments', [])  # List of attachment IDs
         
         if not template_id:
             return jsonify({'error': 'Template ID is required'}), 400
@@ -816,18 +837,81 @@ def test_send_email_template():
             subject = subject.replace('{{' + var_name + '}}', str(var_value or ''))
             body = body.replace('{{' + var_name + '}}', str(var_value or ''))
         
-        # Create message
-        msg = MIMEMultipart('alternative')
+        # Create message with mixed type to support both alternative content and attachments
+        msg = MIMEMultipart('mixed')
         msg['Subject'] = subject
         msg['From'] = f'{sender_name} <{sender_email}>'
         msg['To'] = test_email
+        
+        # Create alternative part for text and HTML
+        msg_alternative = MIMEMultipart('alternative')
+        
+        # Create related part for HTML with inline images
+        msg_related = MIMEMultipart('related')
         
         # Plain text version - strip HTML tags
         text_content = body.replace('<br>', '\n').replace('<p>', '\n').replace('</p>', '\n')
         text_content = re.sub('<[^<]+?>', '', text_content)
         
-        msg.attach(MIMEText(text_content, 'plain'))
-        msg.attach(MIMEText(body, 'html'))
+        msg_alternative.attach(MIMEText(text_content, 'plain'))
+        
+        # Process inline images in body (replace image URLs with cid references)
+        inline_images = []
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        
+        # Find and process inline images in the template body
+        # Look for patterns like src="/static/uploads/email_attachments/..." or src="{{image:filename}}"
+        img_pattern = r'src=["\'](?:/static/uploads/email_attachments/|{{image:)([^"\']+)["\']'
+        matches = re.findall(img_pattern, body)
+        
+        for i, match in enumerate(matches):
+            filename = match.rstrip('}}')
+            file_path = os.path.join(upload_folder, secure_filename(filename))
+            
+            if os.path.exists(file_path) and allowed_image(filename):
+                cid = f'image{i}'
+                # Replace the src with cid reference
+                body = re.sub(
+                    r'src=["\'](?:/static/uploads/email_attachments/|{{image:)' + re.escape(match) + r'["\']',
+                    f'src="cid:{cid}"',
+                    body
+                )
+                inline_images.append((file_path, cid, filename))
+        
+        # Attach HTML content
+        msg_related.attach(MIMEText(body, 'html'))
+        
+        # Attach inline images
+        for file_path, cid, filename in inline_images:
+            with open(file_path, 'rb') as img_file:
+                img_data = img_file.read()
+                ext = filename.rsplit('.', 1)[1].lower()
+                mime_subtype = 'jpeg' if ext == 'jpg' else ext
+                img = MIMEImage(img_data, _subtype=mime_subtype)
+                img.add_header('Content-ID', f'<{cid}>')
+                img.add_header('Content-Disposition', 'inline', filename=filename)
+                msg_related.attach(img)
+        
+        msg_alternative.attach(msg_related)
+        msg.attach(msg_alternative)
+        
+        # Fetch and attach files from attachment_ids
+        if attachment_ids:
+            attachments_response = supabase.table('email_attachments').select('*').in_('id', attachment_ids).execute()
+            attachments = attachments_response.data if attachments_response.data else []
+            
+            for attachment in attachments:
+                file_path = os.path.join(upload_folder, attachment['stored_filename'])
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        part = MIMEBase('application', 'octet-stream')
+                        part.set_payload(f.read())
+                        encoders.encode_base64(part)
+                        part.add_header(
+                            'Content-Disposition',
+                            f'attachment; filename="{attachment["original_filename"]}"'
+                        )
+                        msg.attach(part)
         
         # Send email
         server = None
@@ -861,6 +945,122 @@ def test_send_email_template():
         return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
     except Exception as e:
         return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
+
+
+@settings_bp.route('/settings/email-attachments', methods=['GET'])
+@login_required
+def list_email_attachments():
+    """List all email attachments."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        response = supabase.table('email_attachments').select('*').order('created_at', desc=True).execute()
+        attachments = response.data if response.data else []
+        return jsonify({'success': True, 'data': attachments})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-attachments/upload', methods=['POST'])
+@login_required
+def upload_email_attachment():
+    """Upload a file attachment for email templates."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not allowed_file(file.filename):
+            return jsonify({'error': f'File type not allowed. Allowed types: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
+        
+        # Generate unique filename
+        original_filename = secure_filename(file.filename)
+        ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
+        stored_filename = f'{uuid.uuid4().hex}.{ext}'
+        
+        # Save file
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        file_path = os.path.join(upload_folder, stored_filename)
+        file.save(file_path)
+        
+        # Get file size
+        file_size = os.path.getsize(file_path)
+        
+        # Determine if it's an image
+        is_image = allowed_image(original_filename)
+        
+        # Save to database
+        attachment_data = {
+            'original_filename': original_filename,
+            'stored_filename': stored_filename,
+            'file_size': file_size,
+            'mime_type': file.content_type or 'application/octet-stream',
+            'is_image': is_image
+        }
+        
+        response = supabase.table('email_attachments').insert(attachment_data).execute()
+        
+        if response.data:
+            attachment = response.data[0]
+            # Add URL for accessing the file
+            attachment['url'] = url_for('settings.serve_email_attachment', filename=stored_filename, _external=True)
+            return jsonify({'success': True, 'data': attachment})
+        else:
+            return jsonify({'error': 'Failed to save attachment info'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-attachments/<int:attachment_id>', methods=['DELETE'])
+@login_required
+def delete_email_attachment(attachment_id):
+    """Delete an email attachment."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Get attachment info
+        response = supabase.table('email_attachments').select('*').eq('id', attachment_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Attachment not found'}), 404
+        
+        attachment = response.data[0]
+        
+        # Delete file from disk
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        file_path = os.path.join(upload_folder, attachment['stored_filename'])
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Delete from database
+        supabase.table('email_attachments').delete().eq('id', attachment_id).execute()
+        
+        return jsonify({'success': True, 'message': 'Attachment deleted successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/uploads/email_attachments/<filename>')
+@login_required
+def serve_email_attachment(filename):
+    """Serve an uploaded email attachment."""
+    upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+    return send_from_directory(upload_folder, filename)
 
 
 @settings_bp.route('/settings/email-templates/bulk-send', methods=['POST'])
