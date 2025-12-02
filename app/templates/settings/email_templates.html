@@ -104,6 +104,12 @@
                                     <button onclick="previewTemplate({{ template.id }})" class="btn btn-xs btn-ghost btn-info">
                                         Preview
                                     </button>
+                                    <button onclick="showTestSendModal({{ template.id }}, '{{ template.name }}')" class="btn btn-xs btn-outline btn-primary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        Test Send
+                                    </button>
                                     <button onclick="showBulkSendModal({{ template.id }}, '{{ template.name }}')" class="btn btn-xs btn-success">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -341,6 +347,67 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
                 Send to All Participants
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<!-- Test Send Modal -->
+<dialog id="testSendModal" class="modal">
+    <div class="modal-box max-w-lg">
+        <h3 class="font-bold text-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Test Send Email
+        </h3>
+        
+        <div class="py-4">
+            <div class="alert alert-info mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div>
+                    <p class="font-semibold">Template: <span id="testSendTemplateName"></span></p>
+                    <p class="text-sm">Send a test email with sample data to verify the template.</p>
+                </div>
+            </div>
+            
+            <input type="hidden" id="testSendTemplateId" />
+            
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Test Email Address</span>
+                </label>
+                <input type="email" id="testSendEmail" placeholder="Enter email address" 
+                       class="input input-bordered w-full" required />
+                <label class="label">
+                    <span class="label-text-alt text-base-content/50">The test email will be sent to this address with sample variable values</span>
+                </label>
+            </div>
+            
+            <div id="testSendStatus" class="hidden">
+                <div class="flex items-center gap-3">
+                    <span class="loading loading-spinner loading-md"></span>
+                    <span>Sending test email...</span>
+                </div>
+            </div>
+            
+            <div id="testSendResult" class="hidden">
+                <div id="testSendResultAlert" class="alert">
+                    <span id="testSendResultText"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-action">
+            <button type="button" onclick="closeTestSendModal()" class="btn btn-ghost" id="testSendCancelBtn">Cancel</button>
+            <button type="button" onclick="startTestSend()" class="btn btn-primary" id="testSendStartBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Send Test Email
             </button>
         </div>
     </div>
@@ -600,6 +667,89 @@ async function startBulkSend() {
         document.getElementById('bulkSendComplete').querySelector('.alert').classList.remove('alert-success');
         document.getElementById('bulkSendComplete').querySelector('.alert').classList.add('alert-error');
         document.getElementById('bulkSendCompleteText').textContent = 'Error: ' + error.message;
+    }
+}
+
+// Test Send Functions
+function showTestSendModal(templateId, templateName) {
+    document.getElementById('testSendTemplateId').value = templateId;
+    document.getElementById('testSendTemplateName').textContent = templateName;
+    document.getElementById('testSendEmail').value = '';
+    document.getElementById('testSendStatus').classList.add('hidden');
+    document.getElementById('testSendResult').classList.add('hidden');
+    document.getElementById('testSendStartBtn').disabled = false;
+    document.getElementById('testSendStartBtn').classList.remove('hidden');
+    document.getElementById('testSendCancelBtn').textContent = 'Cancel';
+    document.getElementById('testSendModal').showModal();
+}
+
+function closeTestSendModal() {
+    document.getElementById('testSendModal').close();
+}
+
+async function startTestSend() {
+    const templateId = document.getElementById('testSendTemplateId').value;
+    const testEmail = document.getElementById('testSendEmail').value.trim();
+    
+    if (!testEmail) {
+        alert('Please enter an email address');
+        return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(testEmail)) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    
+    // Show status
+    document.getElementById('testSendStatus').classList.remove('hidden');
+    document.getElementById('testSendResult').classList.add('hidden');
+    document.getElementById('testSendStartBtn').disabled = true;
+    
+    try {
+        const response = await fetch('/settings/email-templates/test-send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                template_id: templateId,
+                test_email: testEmail
+            })
+        });
+        
+        const result = await response.json();
+        
+        document.getElementById('testSendStatus').classList.add('hidden');
+        document.getElementById('testSendResult').classList.remove('hidden');
+        
+        const alertElement = document.getElementById('testSendResultAlert');
+        const textElement = document.getElementById('testSendResultText');
+        
+        // Reset alert classes
+        alertElement.classList.remove('alert-success', 'alert-error');
+        
+        if (result.success) {
+            alertElement.classList.add('alert-success');
+            textElement.textContent = result.message || 'Test email sent successfully!';
+            document.getElementById('testSendCancelBtn').textContent = 'Close';
+            document.getElementById('testSendStartBtn').classList.add('hidden');
+        } else {
+            alertElement.classList.add('alert-error');
+            textElement.textContent = 'Error: ' + (result.error || 'Unknown error');
+            document.getElementById('testSendStartBtn').disabled = false;
+        }
+    } catch (error) {
+        document.getElementById('testSendStatus').classList.add('hidden');
+        document.getElementById('testSendResult').classList.remove('hidden');
+        
+        const alertElement = document.getElementById('testSendResultAlert');
+        alertElement.classList.remove('alert-success');
+        alertElement.classList.add('alert-error');
+        document.getElementById('testSendResultText').textContent = 'Error: ' + error.message;
+        document.getElementById('testSendStartBtn').disabled = false;
     }
 }
 </script>

@@ -730,6 +730,139 @@ def preview_email_template():
         return jsonify({'error': str(e)}), 500
 
 
+@settings_bp.route('/settings/email-templates/test-send', methods=['POST'])
+@login_required
+def test_send_email_template():
+    """Send a test email using a template to a specific email address."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    import re
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        template_id = data.get('template_id')
+        test_email = data.get('test_email', '').strip()
+        
+        if not template_id:
+            return jsonify({'error': 'Template ID is required'}), 400
+        
+        if not test_email:
+            return jsonify({'error': 'Test email address is required'}), 400
+        
+        # Basic email validation
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, test_email):
+            return jsonify({'error': 'Invalid email address format'}), 400
+        
+        # Fetch the template
+        template_response = supabase.table('email_templates').select('*').eq('id', template_id).execute()
+        if not template_response.data:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        template = template_response.data[0]
+        
+        # Fetch SMTP settings
+        settings_response = supabase.table('settings').select('*').execute()
+        settings = {}
+        if settings_response.data:
+            for setting in settings_response.data:
+                settings[setting['key']] = setting['value']
+        
+        smtp_host = settings.get('smtp_host', '')
+        smtp_port = int(settings.get('smtp_port', 587))
+        smtp_username = settings.get('smtp_username', '')
+        smtp_password = settings.get('smtp_password', '')
+        sender_email = settings.get('smtp_sender_email', '')
+        sender_name = settings.get('smtp_sender_name', 'CTF Manager')
+        use_tls = settings.get('smtp_use_tls', 'true').lower() == 'true'
+        use_ssl = settings.get('smtp_use_ssl', 'false').lower() == 'true'
+        event_name = settings.get('event_name', 'CTF Event')
+        site_name = settings.get('site_name', 'CTF Manager')
+        
+        if not smtp_host or not sender_email:
+            return jsonify({'error': 'SMTP settings not configured. Please configure SMTP first.'}), 400
+        
+        # Sample variable values for test send
+        sample_variables = {
+            'user_name': 'Test User',
+            'user_email': test_email,
+            'user_ctfd_username': 'test_user',
+            'user_ctfd_password': 'TestPass123',
+            'team_name': 'Test Team',
+            'team_ctfd_username': 'test_team',
+            'team_ctfd_password': 'TeamPass456',
+            'event_name': event_name,
+            'site_name': site_name,
+            'challenge_name': 'Test Challenge',
+            'category': 'Web',
+            'difficulty': 'Medium',
+            'setter': 'admin',
+            'round_name': 'Test Round',
+            'date': datetime.now().strftime('%Y-%m-%d'),
+            'time': datetime.now().strftime('%H:%M')
+        }
+        
+        # Replace variables in template
+        subject = template['subject']
+        body = template['body']
+        
+        for var_name, var_value in sample_variables.items():
+            subject = subject.replace('{{' + var_name + '}}', str(var_value or ''))
+            body = body.replace('{{' + var_name + '}}', str(var_value or ''))
+        
+        # Create message
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = f'{sender_name} <{sender_email}>'
+        msg['To'] = test_email
+        
+        # Plain text version - strip HTML tags
+        text_content = body.replace('<br>', '\n').replace('<p>', '\n').replace('</p>', '\n')
+        text_content = re.sub('<[^<]+?>', '', text_content)
+        
+        msg.attach(MIMEText(text_content, 'plain'))
+        msg.attach(MIMEText(body, 'html'))
+        
+        # Send email
+        server = None
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                if use_tls:
+                    server.starttls()
+            
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            
+            server.sendmail(sender_email, test_email, msg.as_string())
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+        
+        return jsonify({
+            'success': True,
+            'message': f'Test email sent successfully to {test_email}'
+        })
+        
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'SMTP authentication failed. Check username and password.'}), 400
+    except smtplib.SMTPConnectError:
+        return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to send test email: {str(e)}'}), 500
+
+
 @settings_bp.route('/settings/email-templates/bulk-send', methods=['POST'])
 @login_required
 def bulk_send_email():
