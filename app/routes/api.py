@@ -675,16 +675,17 @@ def get_public_stats():
             
             # Progress counts both accepted and pending challenges
             progress_count = accepted_count + pending_count
+            target_count = target.get('target_count', 0)
             
             stats['targets'].append({
                 'category': target.get('category'),
                 'difficulty': target.get('difficulty'),
                 'round': round_name,
-                'target_count': target.get('target_count', 0),
+                'target_count': target_count,
                 'accepted_count': accepted_count,
                 'pending_count': pending_count,
                 'progress_count': progress_count,
-                'progress_percentage': round((progress_count / target.get('target_count', 1)) * 100, 2) if target.get('target_count', 0) > 0 else 0
+                'progress_percentage': round((progress_count / target_count) * 100, 2) if target_count > 0 else 0
             })
         
         # Build rounds info with schedule
