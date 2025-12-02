@@ -1243,7 +1243,7 @@ def bulk_send_email():
                     
                     # Find and process inline images in the template body
                     # Look for patterns like src="/uploads/email_attachments/..." or src="{{cid:filename}}"
-                    img_pattern = r'src=["\'](?:/uploads/email_attachments/|{{cid:)([^"\']+)["\']'
+                    img_pattern = r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)([^"\']+)["\']'
                     matches = re.findall(img_pattern, body)
                     
                     for i, match in enumerate(matches):
@@ -1254,7 +1254,7 @@ def bulk_send_email():
                             cid = f'image{i}'
                             # Replace the src with cid reference
                             body = re.sub(
-                                r'src=["\'](?:/uploads/email_attachments/|{{cid:)' + re.escape(match) + r'["\']',
+                                r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)' + re.escape(match) + r'["\']',
                                 f'src="cid:{cid}"',
                                 body
                             )

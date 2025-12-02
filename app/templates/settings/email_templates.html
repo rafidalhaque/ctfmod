@@ -1107,7 +1107,8 @@ function removeSelectedAttachment(attachmentId) {
 }
 
 function copyImageHtml(filename) {
-    const html = `<img src="/uploads/email_attachments/${filename}" alt="Image" style="max-width: 100%;" />`;
+    const altText = filename.split('.')[0] || 'Image';
+    const html = `<img src="/uploads/email_attachments/${filename}" alt="${altText}" style="max-width: 100%;" />`;
     navigator.clipboard.writeText(html).then(() => {
         alert('Copied! Paste this HTML into your email template body:\n\n' + html);
     }).catch(() => {
@@ -1196,7 +1197,8 @@ function copyCid(filename) {
 }
 
 function copyCidTag(filename) {
-    const cidTag = `<img src="{{cid:${filename}}}" alt="Image" style="max-width: 100%;" />`;
+    const altText = filename.split('.')[0] || 'Image';
+    const cidTag = `<img src="{{cid:${filename}}}" alt="${altText}" style="max-width: 100%;" />`;
     navigator.clipboard.writeText(cidTag).then(() => {
         alert('Copied! Paste this into your email template body to embed the image inline:\n\n' + cidTag);
     }).catch(() => {
