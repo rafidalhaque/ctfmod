@@ -157,12 +157,13 @@
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
                                     {% set max_val = category_target if category_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    {% set progress_count = data.accepted + data.pending %}
                                     <div class="flex items-center gap-2">
                                         <progress class="progress progress-success w-20" 
-                                                  value="{{ data.accepted }}" 
+                                                  value="{{ progress_count }}" 
                                                   max="{{ max_val }}"></progress>
                                         {% if category_target > 0 %}
-                                        <span class="text-xs">{{ data.accepted }}/{{ category_target }}</span>
+                                        <span class="text-xs">{{ progress_count }}/{{ category_target }}</span>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -215,12 +216,13 @@
                                 <td class="text-error">{{ data.declined }}</td>
                                 <td>
                                     {% set max_val = difficulty_target if difficulty_target > 0 else (data.total if data.total > 0 else 1) %}
+                                    {% set progress_count = data.accepted + data.pending %}
                                     <div class="flex items-center gap-2">
                                         <progress class="progress progress-success w-20" 
-                                                  value="{{ data.accepted }}" 
+                                                  value="{{ progress_count }}" 
                                                   max="{{ max_val }}"></progress>
                                         {% if difficulty_target > 0 %}
-                                        <span class="text-xs">{{ data.accepted }}/{{ difficulty_target }}</span>
+                                        <span class="text-xs">{{ progress_count }}/{{ difficulty_target }}</span>
                                         {% endif %}
                                     </div>
                                 </td>
@@ -288,11 +290,12 @@
                             <td class="text-warning">{{ target_stats.pending }}</td>
                             <td class="text-error">{{ target_stats.declined }}</td>
                             <td>
+                                {% set target_progress_count = target_stats.accepted + target_stats.pending %}
                                 <div class="flex items-center gap-2">
                                     <progress class="progress progress-success w-20" 
-                                              value="{{ target_stats.accepted }}" 
+                                              value="{{ target_progress_count }}" 
                                               max="{{ target.target_count if target.target_count > 0 else 1 }}"></progress>
-                                    <span class="text-sm">{{ target_stats.accepted }}/{{ target.target_count }}</span>
+                                    <span class="text-sm">{{ target_progress_count }}/{{ target.target_count }}</span>
                                 </div>
                             </td>
                         </tr>
