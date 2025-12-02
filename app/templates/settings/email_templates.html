@@ -104,7 +104,9 @@
                                     <button onclick="previewTemplate({{ template.id }})" class="btn btn-xs btn-ghost btn-info">
                                         Preview
                                     </button>
-                                    <button onclick="showTestSendModal({{ template.id }}, '{{ template.name }}')" class="btn btn-xs btn-outline btn-primary">
+                                    <button class="btn btn-xs btn-outline btn-primary test-send-btn"
+                                            data-template-id="{{ template.id }}"
+                                            data-template-name="{{ template.name | e }}">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                         </svg>
@@ -385,6 +387,7 @@
                 <label class="label">
                     <span class="label-text-alt text-base-content/50">The test email will be sent to this address with sample variable values</span>
                 </label>
+                <p id="testSendEmailError" class="text-error text-sm mt-1 hidden"></p>
             </div>
             
             <div id="testSendStatus" class="hidden">
@@ -675,6 +678,8 @@ function showTestSendModal(templateId, templateName) {
     document.getElementById('testSendTemplateId').value = templateId;
     document.getElementById('testSendTemplateName').textContent = templateName;
     document.getElementById('testSendEmail').value = '';
+    document.getElementById('testSendEmail').classList.remove('input-error');
+    document.getElementById('testSendEmailError').classList.add('hidden');
     document.getElementById('testSendStatus').classList.add('hidden');
     document.getElementById('testSendResult').classList.add('hidden');
     document.getElementById('testSendStartBtn').disabled = false;
@@ -687,19 +692,46 @@ function closeTestSendModal() {
     document.getElementById('testSendModal').close();
 }
 
+function showTestSendError(message) {
+    const errorElement = document.getElementById('testSendEmailError');
+    const inputElement = document.getElementById('testSendEmail');
+    errorElement.textContent = message;
+    errorElement.classList.remove('hidden');
+    inputElement.classList.add('input-error');
+}
+
+function hideTestSendError() {
+    const errorElement = document.getElementById('testSendEmailError');
+    const inputElement = document.getElementById('testSendEmail');
+    errorElement.classList.add('hidden');
+    inputElement.classList.remove('input-error');
+}
+
+// Attach click handlers to test send buttons
+document.querySelectorAll('.test-send-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+        const templateId = this.dataset.templateId;
+        const templateName = this.dataset.templateName;
+        showTestSendModal(templateId, templateName);
+    });
+});
+
 async function startTestSend() {
     const templateId = document.getElementById('testSendTemplateId').value;
     const testEmail = document.getElementById('testSendEmail').value.trim();
     
+    // Hide any previous error
+    hideTestSendError();
+    
     if (!testEmail) {
-        alert('Please enter an email address');
+        showTestSendError('Please enter an email address');
         return;
     }
     
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(testEmail)) {
-        alert('Please enter a valid email address');
+        showTestSendError('Please enter a valid email address');
         return;
     }
     
