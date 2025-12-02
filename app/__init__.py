@@ -12,6 +12,13 @@ def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
     
+    # File upload configuration
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+    app.config['UPLOAD_FOLDER'] = os.path.join(app.root_path, 'static', 'uploads', 'email_attachments')
+    
+    # Ensure upload directory exists
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    
     # Supabase configuration
     app.config['SUPABASE_URL'] = os.getenv('SUPABASE_URL', '')
     app.config['SUPABASE_KEY'] = os.getenv('SUPABASE_KEY', '')
