@@ -1492,18 +1492,25 @@ def bulk_update_team_status():
         
         # Update teams in bulk
         updated_count = 0
+        failed_ids = []
         for team_id in team_ids:
             try:
                 supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
                 updated_count += 1
             except Exception:
-                pass
+                failed_ids.append(team_id)
         
-        return jsonify({
+        response_data = {
             'success': True,
             'message': f'Updated {updated_count} teams to status: {status}',
             'updated_count': updated_count
-        })
+        }
+        
+        if failed_ids:
+            response_data['failed_ids'] = failed_ids
+            response_data['message'] += f'. Failed to update {len(failed_ids)} team(s).'
+        
+        return jsonify(response_data)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1525,7 +1532,13 @@ def get_team_statuses():
         status_counts = {}
         for status in valid_statuses:
             response = supabase.table('teams').select('id', count='exact').eq('status', status).execute()
-            status_counts[status] = response.count if hasattr(response, 'count') else len(response.data) if response.data else 0
+            # Get count from response - check count attribute first, then data length
+            if hasattr(response, 'count') and response.count is not None:
+                status_counts[status] = response.count
+            elif response.data:
+                status_counts[status] = len(response.data)
+            else:
+                status_counts[status] = 0
         
         return jsonify({
             'success': True,
