@@ -23,6 +23,31 @@
         </div>
     </div>
 
+    <!-- Bulk Actions Bar -->
+    <div id="bulkActionsBar" class="card bg-base-100 shadow-xl hidden">
+        <div class="card-body py-3">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <span class="font-semibold"><span id="selectedCount">0</span> teams selected</span>
+                    <button onclick="clearSelection()" class="btn btn-xs btn-ghost">Clear</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <select id="bulkStatusSelect" class="select select-bordered select-sm">
+                        <option value="">Change Status To...</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="waitlisted">Waitlisted</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <button onclick="applyBulkStatus()" class="btn btn-primary btn-sm">
+                        Apply Status
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Teams Table -->
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -30,6 +55,11 @@
                 <table class="table">
                     <thead>
                         <tr>
+                            <th>
+                                <label>
+                                    <input type="checkbox" class="checkbox checkbox-sm" id="selectAllCheckbox" onchange="toggleSelectAll()" />
+                                </label>
+                            </th>
                             <th>Team Name</th>
                             <th>Captain</th>
                             <th>Members</th>
@@ -41,7 +71,12 @@
                     </thead>
                     <tbody>
                         {% for team in teams %}
-                        <tr class="hover">
+                        <tr class="hover" data-team-id="{{ team.id }}">
+                            <td>
+                                <label>
+                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="updateSelection()" />
+                                </label>
+                            </td>
                             <td>
                                 <div class="font-bold">{{ team.team_name }}</div>
                                 {% if team.project_name %}
@@ -85,15 +120,13 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% if team.status == 'approved' %}
-                                <span class="badge badge-success badge-sm">Approved</span>
-                                {% elif team.status == 'pending' %}
-                                <span class="badge badge-warning badge-sm">Pending</span>
-                                {% elif team.status == 'rejected' %}
-                                <span class="badge badge-error badge-sm">Rejected</span>
-                                {% else %}
-                                <span class="badge badge-ghost badge-sm">{{ team.status }}</span>
-                                {% endif %}
+                                <select class="select select-bordered select-xs status-select" data-team-id="{{ team.id }}" onchange="updateTeamStatus(this)">
+                                    <option value="pending" {% if team.status == 'pending' %}selected{% endif %}>Pending</option>
+                                    <option value="approved" {% if team.status == 'approved' %}selected{% endif %}>Approved</option>
+                                    <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                                    <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
+                                    <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                </select>
                             </td>
                             <td>
                                 <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary">
@@ -103,7 +136,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center text-base-content/50 py-8">
+                            <td colspan="8" class="text-center text-base-content/50 py-8">
                                 No teams found.
                             </td>
                         </tr>
@@ -144,6 +177,132 @@ function copyPassword(btn) {
             btn.innerHTML = originalText;
         }, 1500);
     });
+}
+
+// Status update functions
+async function updateTeamStatus(selectElement) {
+    const teamId = selectElement.dataset.teamId;
+    const status = selectElement.value;
+    
+    try {
+        const response = await fetch(`/settings/teams/${teamId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Status updated successfully', 'success');
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+            // Revert the select to original value
+            location.reload();
+        }
+    } catch (error) {
+        showToast('Error updating status: ' + error.message, 'error');
+        location.reload();
+    }
+}
+
+// Bulk selection functions
+function toggleSelectAll() {
+    const selectAll = document.getElementById('selectAllCheckbox');
+    const checkboxes = document.querySelectorAll('.team-checkbox');
+    
+    checkboxes.forEach(cb => {
+        cb.checked = selectAll.checked;
+    });
+    
+    updateSelection();
+}
+
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.team-checkbox:checked');
+    const count = checkboxes.length;
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const selectedCount = document.getElementById('selectedCount');
+    
+    selectedCount.textContent = count;
+    
+    if (count > 0) {
+        bulkBar.classList.remove('hidden');
+    } else {
+        bulkBar.classList.add('hidden');
+    }
+    
+    // Update select all checkbox state
+    const allCheckboxes = document.querySelectorAll('.team-checkbox');
+    const selectAll = document.getElementById('selectAllCheckbox');
+    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+    selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+}
+
+function clearSelection() {
+    const checkboxes = document.querySelectorAll('.team-checkbox');
+    checkboxes.forEach(cb => {
+        cb.checked = false;
+    });
+    document.getElementById('selectAllCheckbox').checked = false;
+    updateSelection();
+}
+
+async function applyBulkStatus() {
+    const status = document.getElementById('bulkStatusSelect').value;
+    if (!status) {
+        showToast('Please select a status', 'warning');
+        return;
+    }
+    
+    const checkboxes = document.querySelectorAll('.team-checkbox:checked');
+    const teamIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    if (teamIds.length === 0) {
+        showToast('No teams selected', 'warning');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to change ${teamIds.length} team(s) to status "${status}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/settings/teams/bulk-status', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ team_ids: teamIds, status })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(result.message, 'success');
+            location.reload();
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error updating statuses: ' + error.message, 'error');
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-end';
+    
+    let alertClass = 'alert-info';
+    if (type === 'success') alertClass = 'alert-success';
+    else if (type === 'error') alertClass = 'alert-error';
+    else if (type === 'warning') alertClass = 'alert-warning';
+    
+    toast.innerHTML = `<div class="alert ${alertClass}"><span>${message}</span></div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 </script>
 {% endblock %}
