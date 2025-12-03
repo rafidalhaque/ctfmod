@@ -1066,7 +1066,7 @@ def serve_email_attachment(filename):
 @settings_bp.route('/settings/email-templates/bulk-send', methods=['POST'])
 @login_required
 def bulk_send_email():
-    """Send bulk emails to all participants using a template."""
+    """Send bulk emails to participants using a template, optionally filtered by team status."""
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
@@ -1085,6 +1085,7 @@ def bulk_send_email():
         template_id = data.get('template_id')
         include_team_captains = data.get('include_team_captains', False)
         attachment_ids = data.get('attachments', [])  # List of attachment IDs
+        status_filter = data.get('status_filter', [])  # List of statuses to filter by (empty = all)
         
         if not template_id:
             return jsonify({'error': 'Template ID is required'}), 400
@@ -1121,9 +1122,17 @@ def bulk_send_email():
         members_response = supabase.table('team_members').select('*').execute()
         members = members_response.data if members_response.data else []
         
-        # Fetch teams for team name lookup
+        # Fetch teams for team name lookup, optionally filtered by status
         teams_response = supabase.table('teams').select('*').execute()
-        teams = {team['id']: team for team in (teams_response.data or [])}
+        all_teams = teams_response.data or []
+        
+        # Filter teams by status if status_filter is provided
+        if status_filter and len(status_filter) > 0:
+            filtered_teams = [team for team in all_teams if team.get('status') in status_filter]
+        else:
+            filtered_teams = all_teams
+        
+        teams = {team['id']: team for team in filtered_teams}
         
         # Fetch team credentials
         team_creds_response = supabase.table('ctfd_team_credentials').select('*').execute()
@@ -1133,12 +1142,17 @@ def bulk_send_email():
         user_creds_response = supabase.table('ctfd_user_credentials').select('*').execute()
         user_credentials = {cred['member_id']: cred for cred in (user_creds_response.data or [])}
         
-        # Prepare recipients
+        # Prepare recipients - only include members from filtered teams
         recipients = []
         for member in members:
             if member.get('email'):
-                team = teams.get(member.get('team_id'), {})
-                team_cred = team_credentials.get(member.get('team_id'), {})
+                team_id = member.get('team_id')
+                # Only include if team is in the filtered list
+                if team_id not in teams:
+                    continue
+                    
+                team = teams.get(team_id, {})
+                team_cred = team_credentials.get(team_id, {})
                 user_cred = user_credentials.get(member.get('id'), {})
                 
                 recipients.append({
@@ -1152,7 +1166,7 @@ def bulk_send_email():
                     'team_ctfd_password': team_cred.get('ctfd_team_password', '')
                 })
         
-        # Add team captains if requested
+        # Add team captains if requested (from filtered teams only)
         if include_team_captains:
             for team_id, team in teams.items():
                 if team.get('captain_email'):
@@ -1415,3 +1429,108 @@ def participants_list():
             flash(f'Error fetching participants: {str(e)}', 'error')
     
     return render_template('settings/participants.html', participants=participants)
+
+
+@settings_bp.route('/settings/teams/<int:team_id>/status', methods=['PUT'])
+@login_required
+def update_team_status(team_id):
+    """Update a team's status."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        status = data.get('status', '').strip()
+        
+        if not status:
+            return jsonify({'error': 'Status is required'}), 400
+        
+        # Valid statuses
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        if status not in valid_statuses:
+            return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
+        
+        # Check if the team exists
+        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Team not found'}), 404
+        
+        # Update the team status
+        supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
+        
+        return jsonify({'success': True, 'message': f'Team status updated to {status}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/bulk-status', methods=['PUT'])
+@login_required
+def bulk_update_team_status():
+    """Update multiple teams' status at once."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        team_ids = data.get('team_ids', [])
+        status = data.get('status', '').strip()
+        
+        if not team_ids:
+            return jsonify({'error': 'No teams selected'}), 400
+        
+        if not status:
+            return jsonify({'error': 'Status is required'}), 400
+        
+        # Valid statuses
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        if status not in valid_statuses:
+            return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
+        
+        # Update teams in bulk
+        updated_count = 0
+        for team_id in team_ids:
+            try:
+                supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
+                updated_count += 1
+            except Exception:
+                pass
+        
+        return jsonify({
+            'success': True,
+            'message': f'Updated {updated_count} teams to status: {status}',
+            'updated_count': updated_count
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/statuses')
+@login_required
+def get_team_statuses():
+    """Get list of valid team statuses and counts."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Valid statuses
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        
+        # Get count for each status
+        status_counts = {}
+        for status in valid_statuses:
+            response = supabase.table('teams').select('id', count='exact').eq('status', status).execute()
+            status_counts[status] = response.count if hasattr(response, 'count') else len(response.data) if response.data else 0
+        
+        return jsonify({
+            'success': True,
+            'statuses': valid_statuses,
+            'counts': status_counts
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

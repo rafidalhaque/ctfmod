@@ -38,15 +38,16 @@
                 {% endif %}
                 <div>
                     <p class="text-sm text-base-content/50">Status</p>
-                    {% if team.status == 'approved' %}
-                    <span class="badge badge-success">Approved</span>
-                    {% elif team.status == 'pending' %}
-                    <span class="badge badge-warning">Pending</span>
-                    {% elif team.status == 'rejected' %}
-                    <span class="badge badge-error">Rejected</span>
-                    {% else %}
-                    <span class="badge badge-ghost">{{ team.status }}</span>
-                    {% endif %}
+                    <div class="flex items-center gap-2 mt-1">
+                        <select id="teamStatusSelect" class="select select-bordered select-sm" data-team-id="{{ team.id }}" onchange="updateTeamStatus(this)">
+                            <option value="pending" {% if team.status == 'pending' %}selected{% endif %}>Pending</option>
+                            <option value="approved" {% if team.status == 'approved' %}selected{% endif %}>Approved</option>
+                            <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                            <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
+                            <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        </select>
+                        <span id="statusUpdateIndicator" class="loading loading-spinner loading-xs hidden"></span>
+                    </div>
                 </div>
                 <div>
                     <p class="text-sm text-base-content/50">Captain</p>
@@ -264,6 +265,54 @@ function copyPassword(btn) {
             btn.innerHTML = originalText;
         }, 1500);
     });
+}
+
+// Status update function
+async function updateTeamStatus(selectElement) {
+    const teamId = selectElement.dataset.teamId;
+    const status = selectElement.value;
+    const indicator = document.getElementById('statusUpdateIndicator');
+    
+    indicator.classList.remove('hidden');
+    
+    try {
+        const response = await fetch(`/settings/teams/${teamId}/status`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status })
+        });
+        
+        const result = await response.json();
+        
+        indicator.classList.add('hidden');
+        
+        if (result.success) {
+            showToast('Status updated successfully', 'success');
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+            location.reload();
+        }
+    } catch (error) {
+        indicator.classList.add('hidden');
+        showToast('Error updating status: ' + error.message, 'error');
+        location.reload();
+    }
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-end';
+    
+    let alertClass = 'alert-info';
+    if (type === 'success') alertClass = 'alert-success';
+    else if (type === 'error') alertClass = 'alert-error';
+    else if (type === 'warning') alertClass = 'alert-warning';
+    
+    toast.innerHTML = `<div class="alert ${alertClass}"><span>${message}</span></div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
 }
 </script>
 {% endblock %}
