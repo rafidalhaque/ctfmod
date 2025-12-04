@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}Email Audit Logs - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">Email Audit Logs</h1>
+            <p class="text-base-content/70">Track email sending history with detailed recipient information</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="clearAllLogs()" class="btn btn-error btn-sm btn-outline">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Clear All Logs
+            </button>
+            <a href="{{ url_for('settings.email_templates') }}" class="btn btn-ghost btn-sm">
+                ← Back to Email Templates
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="stats shadow w-full">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+            </div>
+            <div class="stat-title">Total Emails</div>
+            <div class="stat-value text-primary">{{ logs|length }}</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-success">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Sent Successfully</div>
+            <div class="stat-value text-success">{{ logs|selectattr('status', 'equalto', 'sent')|list|length }}</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-error">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Failed</div>
+            <div class="stat-value text-error">{{ logs|selectattr('status', 'equalto', 'failed')|list|length }}</div>
+        </div>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body py-4">
+            <div class="flex flex-wrap gap-4 items-center">
+                <div class="form-control">
+                    <label class="label py-0">
+                        <span class="label-text">Filter by Status</span>
+                    </label>
+                    <select id="statusFilter" class="select select-bordered select-sm" onchange="filterLogs()">
+                        <option value="">All</option>
+                        <option value="sent">Sent</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                
+                <div class="form-control flex-1">
+                    <label class="label py-0">
+                        <span class="label-text">Search</span>
+                    </label>
+                    <input type="text" id="searchInput" placeholder="Search by email, name, or team..." 
+                           class="input input-bordered input-sm w-full max-w-xs" onkeyup="filterLogs()" />
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-4">Email Sending History</h2>
+            <div class="overflow-x-auto">
+                <table class="table table-sm" id="logsTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Recipient</th>
+                            <th>Team</th>
+                            <th>Template</th>
+                            <th>Sent At</th>
+                            <th>Error</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr class="hover log-row" 
+                            data-status="{{ log.status }}"
+                            data-email="{{ log.recipient_email|lower }}"
+                            data-name="{{ (log.recipient_name or '')|lower }}"
+                            data-team="{{ (log.team_name or '')|lower }}">
+                            <td>
+                                {% if log.status == 'sent' %}
+                                <span class="badge badge-success badge-sm gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Sent
+                                </span>
+                                {% else %}
+                                <span class="badge badge-error badge-sm gap-1">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Failed
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="flex flex-col">
+                                    <span class="font-medium">{{ log.recipient_name or 'Unknown' }}</span>
+                                    <span class="text-xs text-base-content/60">{{ log.recipient_email }}</span>
+                                </div>
+                            </td>
+                            <td>
+                                {% if log.team_id %}
+                                <a href="{{ url_for('settings.team_detail', team_id=log.team_id) }}" 
+                                   class="link link-primary hover:link-hover">
+                                    {{ log.team_name or 'Unknown Team' }}
+                                </a>
+                                {% else %}
+                                <span class="text-base-content/50">{{ log.team_name or 'No Team' }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge badge-outline badge-sm">{{ log.template_name or 'Unknown' }}</span>
+                            </td>
+                            <td>
+                                <span class="text-sm" title="{{ log.sent_at }}">
+                                    {{ log.sent_at[:19].replace('T', ' ') if log.sent_at else '-' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if log.error_message %}
+                                <button class="btn btn-xs btn-ghost btn-error" 
+                                        onclick="showErrorDetails({{ log.error_message|tojson }})">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    View Error
+                                </button>
+                                {% else %}
+                                <span class="text-base-content/30">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="6" class="text-center text-base-content/50 py-8">
+                                No email audit logs found. Logs will appear here after sending bulk emails.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 text-sm text-base-content/50">
+                <p>Showing {{ logs|length }} log entries (most recent first)</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Details Modal -->
+<dialog id="errorModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg text-error">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Error Details
+        </h3>
+        <div class="py-4">
+            <div class="bg-error/10 border border-error/30 rounded-lg p-4">
+                <pre id="errorContent" class="whitespace-pre-wrap text-sm font-mono text-error"></pre>
+            </div>
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn">Close</button>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function filterLogs() {
+    const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
+    const searchInput = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('.log-row');
+    
+    rows.forEach(row => {
+        const status = row.dataset.status;
+        const email = row.dataset.email;
+        const name = row.dataset.name;
+        const team = row.dataset.team;
+        
+        let statusMatch = !statusFilter || status === statusFilter;
+        let searchMatch = !searchInput || 
+            email.includes(searchInput) || 
+            name.includes(searchInput) || 
+            team.includes(searchInput);
+        
+        row.style.display = (statusMatch && searchMatch) ? '' : 'none';
+    });
+}
+
+function showErrorDetails(errorMessage) {
+    document.getElementById('errorContent').textContent = errorMessage;
+    document.getElementById('errorModal').showModal();
+}
+
+async function clearAllLogs() {
+    if (!confirm('Are you sure you want to clear all email audit logs? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/settings/email-audit-logs/clear', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error clearing logs: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

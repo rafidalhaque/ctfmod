@@ -4,9 +4,12 @@ from app.supabase_client import get_supabase_client
 import secrets
 import os
 import uuid
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from werkzeug.utils import secure_filename
+
+logger = logging.getLogger(__name__)
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -1163,6 +1166,7 @@ def bulk_send_email():
                     'user_ctfd_username': user_cred.get('ctfd_username', ''),
                     'user_ctfd_password': user_cred.get('ctfd_password', ''),
                     'team_name': team.get('team_name', ''),
+                    'team_db_id': team.get('id'),
                     'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                     'team_ctfd_password': team_cred.get('ctfd_team_password', '')
                 })
@@ -1181,6 +1185,7 @@ def bulk_send_email():
                             'user_ctfd_username': '',
                             'user_ctfd_password': '',
                             'team_name': team.get('team_name', ''),
+                            'team_db_id': team.get('id'),
                             'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                             'team_ctfd_password': team_cred.get('ctfd_team_password', '')
                         })
@@ -1210,8 +1215,10 @@ def bulk_send_email():
             
             sent_count = 0
             failed_count = 0
+            audit_logs = []
             
             for recipient in recipients:
+                error_message = None
                 try:
                     # Replace variables in template
                     subject = template['subject']
@@ -1308,14 +1315,47 @@ def bulk_send_email():
                     
                     server.sendmail(sender_email, recipient['email'], msg.as_string())
                     sent_count += 1
-                except Exception:
+                    
+                    # Log successful send
+                    audit_logs.append({
+                        'template_id': template_id,
+                        'template_name': template.get('name', ''),
+                        'recipient_email': recipient['email'],
+                        'recipient_name': recipient['user_name'],
+                        'team_id': recipient.get('team_db_id'),
+                        'team_name': recipient['team_name'],
+                        'status': 'sent',
+                        'error_message': None
+                    })
+                except Exception as e:
                     failed_count += 1
+                    error_message = str(e)
+                    
+                    # Log failed send
+                    audit_logs.append({
+                        'template_id': template_id,
+                        'template_name': template.get('name', ''),
+                        'recipient_email': recipient['email'],
+                        'recipient_name': recipient['user_name'],
+                        'team_id': recipient.get('team_db_id'),
+                        'team_name': recipient['team_name'],
+                        'status': 'failed',
+                        'error_message': error_message
+                    })
         finally:
             if server:
                 try:
                     server.quit()
                 except Exception:
                     pass
+        
+        # Insert audit logs into database
+        if audit_logs:
+            try:
+                supabase.table('email_audit_logs').insert(audit_logs).execute()
+            except Exception as log_error:
+                # Log the error but don't fail the request
+                logger.warning("Failed to save email audit logs: %s", log_error)
         
         return jsonify({
             'success': True,
@@ -1695,5 +1735,85 @@ def update_participant(participant_id):
         
         supabase.table('team_members').update(update_data).eq('id', participant_id).execute()
         return jsonify({'success': True, 'message': 'Participant updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-audit-logs')
+@login_required
+def email_audit_logs():
+    """View email audit logs page."""
+    supabase = get_supabase_client()
+    logs = []
+    
+    if supabase:
+        try:
+            # Fetch email audit logs ordered by most recent first
+            response = supabase.table('email_audit_logs').select('*').order('sent_at', desc=True).limit(500).execute()
+            logs = response.data if response.data else []
+        except Exception as e:
+            flash(f'Error fetching email audit logs: {str(e)}', 'error')
+    
+    return render_template('settings/email_audit_logs.html', logs=logs)
+
+
+@settings_bp.route('/settings/email-audit-logs/api', methods=['GET'])
+@login_required
+def get_email_audit_logs():
+    """API endpoint to fetch email audit logs with optional filters."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Get filter parameters
+        status = request.args.get('status')
+        template_id = request.args.get('template_id')
+        team_id = request.args.get('team_id')
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 50))
+        
+        # Build query
+        query = supabase.table('email_audit_logs').select('*')
+        
+        if status:
+            query = query.eq('status', status)
+        if template_id:
+            query = query.eq('template_id', template_id)
+        if team_id:
+            query = query.eq('team_id', team_id)
+        
+        # Order by most recent first and apply pagination
+        offset = (page - 1) * per_page
+        query = query.order('sent_at', desc=True).range(offset, offset + per_page - 1)
+        
+        response = query.execute()
+        logs = response.data if response.data else []
+        
+        return jsonify({
+            'success': True,
+            'data': logs,
+            'page': page,
+            'per_page': per_page
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/email-audit-logs/clear', methods=['POST'])
+@login_required
+def clear_email_audit_logs():
+    """Clear all email audit logs."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Delete all records by matching any id > 0 (all valid records have positive IDs)
+        # This is a common pattern in Supabase/PostgREST to delete all records
+        supabase.table('email_audit_logs').delete().gt('id', 0).execute()
+        return jsonify({'success': True, 'message': 'All email audit logs cleared'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
