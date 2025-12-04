@@ -1430,10 +1430,16 @@ def teams_list():
             # Build base query
             query = supabase.table('teams').select('*', count='exact')
             
-            # Apply search filter (search by team_name, captain_name, captain_email)
-            # Note: registration_id is BIGINT, so we can't use ilike on it directly
+            # Apply search filter
+            # For text fields use ilike, for registration_id (BIGINT) check if search is numeric
             if search:
-                query = query.or_(f'team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+                # Check if search term is numeric (for registration_id search)
+                if search.isdigit():
+                    # Search by registration_id (exact match) OR text fields
+                    query = query.or_(f'registration_id.eq.{search},team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+                else:
+                    # Search only text fields
+                    query = query.or_(f'team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
             
             # Apply status filter
             if status_filter:
