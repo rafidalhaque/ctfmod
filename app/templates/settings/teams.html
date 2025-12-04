@@ -129,9 +129,16 @@
                                 </select>
                             </td>
                             <td>
-                                <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary">
-                                    View Details
-                                </a>
+                                <div class="flex gap-1">
+                                    <button onclick="openEditTeamModal({{ team.id }})" class="btn btn-xs btn-ghost" title="Edit Team">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                    </button>
+                                    <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary">
+                                        View Details
+                                    </a>
+                                </div>
                             </td>
                         </tr>
                         {% else %}
@@ -151,6 +158,82 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Team Modal -->
+<dialog id="editTeamModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">Edit Team</h3>
+        <form id="editTeamForm">
+            <input type="hidden" id="editTeamId" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Team Name *</span>
+                    </label>
+                    <input type="text" id="editTeamName" class="input input-bordered" required />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Project Name</span>
+                    </label>
+                    <input type="text" id="editProjectName" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Captain Name</span>
+                    </label>
+                    <input type="text" id="editCaptainName" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Captain Email</span>
+                    </label>
+                    <input type="email" id="editCaptainEmail" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Contact Name</span>
+                    </label>
+                    <input type="text" id="editContactName" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Contact Email</span>
+                    </label>
+                    <input type="email" id="editContactEmail" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Contact Number</span>
+                    </label>
+                    <input type="text" id="editContactNumber" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Status</span>
+                    </label>
+                    <select id="editTeamStatus" class="select select-bordered">
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
+                        <option value="waitlisted">Waitlisted</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" onclick="closeEditTeamModal()" class="btn">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <span id="editTeamBtnText">Save Changes</span>
+                    <span id="editTeamSpinner" class="loading loading-spinner loading-sm hidden"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -304,5 +387,84 @@ function showToast(message, type = 'info') {
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 3000);
 }
+
+// Edit team modal functions
+async function openEditTeamModal(teamId) {
+    const modal = document.getElementById('editTeamModal');
+    
+    try {
+        const response = await fetch(`/settings/teams/${teamId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const team = result.data;
+            document.getElementById('editTeamId').value = team.id;
+            document.getElementById('editTeamName').value = team.team_name || '';
+            document.getElementById('editProjectName').value = team.project_name || '';
+            document.getElementById('editCaptainName').value = team.captain_name || '';
+            document.getElementById('editCaptainEmail').value = team.captain_email || '';
+            document.getElementById('editContactName').value = team.contact_name || '';
+            document.getElementById('editContactEmail').value = team.contact_email || '';
+            document.getElementById('editContactNumber').value = team.contact_number || '';
+            document.getElementById('editTeamStatus').value = team.status || 'pending';
+            modal.showModal();
+        } else {
+            showToast('Error: ' + (result.error || 'Failed to load team data'), 'error');
+        }
+    } catch (error) {
+        showToast('Error loading team: ' + error.message, 'error');
+    }
+}
+
+function closeEditTeamModal() {
+    document.getElementById('editTeamModal').close();
+}
+
+document.getElementById('editTeamForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const teamId = document.getElementById('editTeamId').value;
+    const btnText = document.getElementById('editTeamBtnText');
+    const spinner = document.getElementById('editTeamSpinner');
+    
+    btnText.textContent = 'Saving...';
+    spinner.classList.remove('hidden');
+    
+    const data = {
+        team_name: document.getElementById('editTeamName').value,
+        project_name: document.getElementById('editProjectName').value,
+        captain_name: document.getElementById('editCaptainName').value,
+        captain_email: document.getElementById('editCaptainEmail').value,
+        contact_name: document.getElementById('editContactName').value,
+        contact_email: document.getElementById('editContactEmail').value,
+        contact_number: document.getElementById('editContactNumber').value,
+        status: document.getElementById('editTeamStatus').value
+    };
+    
+    try {
+        const response = await fetch(`/settings/teams/${teamId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Team updated successfully', 'success');
+            closeEditTeamModal();
+            location.reload();
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error updating team: ' + error.message, 'error');
+    } finally {
+        btnText.textContent = 'Save Changes';
+        spinner.classList.add('hidden');
+    }
+});
 </script>
 {% endblock %}
