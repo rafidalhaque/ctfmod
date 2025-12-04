@@ -3,7 +3,7 @@
 {% block title %}Deduplication Checker - CTF Manager{% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div class="space-y-6" data-team-base-url="{{ url_for('settings.team_detail', team_id=0) | replace('/0', '') }}">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
@@ -196,6 +196,13 @@
 
 {% block extra_js %}
 <script>
+// Get base URL for team details from data attribute
+const teamBaseUrl = document.querySelector('[data-team-base-url]').dataset.teamBaseUrl;
+
+function getTeamUrl(teamId) {
+    return `${teamBaseUrl}/${teamId}`;
+}
+
 async function runDuplicationCheck() {
     const checkBtn = document.getElementById('checkBtn');
     const checkBtnText = document.getElementById('checkBtnText');
@@ -216,7 +223,7 @@ async function runDuplicationCheck() {
     document.getElementById('multiTeamSection').classList.add('hidden');
     
     try {
-        const response = await fetch('/settings/deduplication/check');
+        const response = await fetch('{{ url_for("settings.check_duplicates") }}');
         const result = await response.json();
         
         if (result.success) {
@@ -281,7 +288,7 @@ function displayResults(result) {
                 <td>
                     ${dup.teams.map(t => `
                         <div class="flex items-center gap-2 mb-1">
-                            <a href="/settings/teams/${t.id}" class="link link-primary">${escapeHtml(t.team_name)}</a>
+                            <a href="${getTeamUrl(t.id)}" class="link link-primary">${escapeHtml(t.team_name)}</a>
                             <span class="badge badge-sm ${getStatusBadgeClass(t.status)}">${t.status || 'pending'}</span>
                             <span class="text-sm text-base-content/50">(Captain: ${escapeHtml(t.captain_name || '-')})</span>
                         </div>
@@ -309,7 +316,7 @@ function displayResults(result) {
                         <div class="flex items-center gap-2 mb-1">
                             <span>${escapeHtml(o.member_name || 'Unknown')}</span>
                             <span class="text-sm">→</span>
-                            ${o.team_id ? `<a href="/settings/teams/${o.team_id}" class="link link-primary text-sm">${escapeHtml(o.team_name)}</a>` : `<span class="text-sm">${escapeHtml(o.team_name)}</span>`}
+                            ${o.team_id ? `<a href="${getTeamUrl(o.team_id)}" class="link link-primary text-sm">${escapeHtml(o.team_name)}</a>` : `<span class="text-sm">${escapeHtml(o.team_name)}</span>`}
                             <span class="badge badge-xs ${getStatusBadgeClass(o.team_status)}">${o.team_status || 'pending'}</span>
                         </div>
                     `).join('')}
@@ -337,7 +344,7 @@ function displayResults(result) {
                             <span>${escapeHtml(o.member_name || 'Unknown')}</span>
                             <span class="text-xs text-base-content/50">(${escapeHtml(o.phone)})</span>
                             <span class="text-sm">→</span>
-                            ${o.team_id ? `<a href="/settings/teams/${o.team_id}" class="link link-primary text-sm">${escapeHtml(o.team_name)}</a>` : `<span class="text-sm">${escapeHtml(o.team_name)}</span>`}
+                            ${o.team_id ? `<a href="${getTeamUrl(o.team_id)}" class="link link-primary text-sm">${escapeHtml(o.team_name)}</a>` : `<span class="text-sm">${escapeHtml(o.team_name)}</span>`}
                             <span class="badge badge-xs ${getStatusBadgeClass(o.team_status)}">${o.team_status || 'pending'}</span>
                         </div>
                     `).join('')}
@@ -362,7 +369,7 @@ function displayResults(result) {
                 <td>
                     ${dup.teams.map(t => `
                         <div class="flex items-center gap-2 mb-1">
-                            <a href="/settings/teams/${t.id}" class="link link-primary">${escapeHtml(t.team_name)}</a>
+                            <a href="${getTeamUrl(t.id)}" class="link link-primary">${escapeHtml(t.team_name)}</a>
                             <span class="badge badge-sm ${getStatusBadgeClass(t.status)}">${t.status || 'pending'}</span>
                             <span class="text-sm text-base-content/50">(Captain: ${escapeHtml(t.captain_name || '-')})</span>
                         </div>
@@ -388,7 +395,7 @@ function displayResults(result) {
                 <td>
                     <div class="flex flex-wrap gap-2">
                         ${dup.teams.map(t => `
-                            <a href="/settings/teams/${t.id}" class="badge badge-outline gap-1">
+                            <a href="${getTeamUrl(t.id)}" class="badge badge-outline gap-1">
                                 ${escapeHtml(t.team_name)}
                                 <span class="badge badge-xs ${getStatusBadgeClass(t.status)}">${t.status || 'pending'}</span>
                             </a>

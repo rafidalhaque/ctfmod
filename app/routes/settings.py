@@ -17,6 +17,9 @@ settings_bp = Blueprint('settings', __name__)
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip'}
 ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
+# Minimum phone number length for deduplication check (validates meaningful phone numbers)
+MIN_PHONE_LENGTH = 7
+
 
 def allowed_file(filename):
     """Check if a file has an allowed extension."""
@@ -1923,7 +1926,7 @@ def check_duplicates():
             # Normalize phone number - remove common separators
             if phone:
                 normalized_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
-                if normalized_phone and len(normalized_phone) >= 7:  # Only check meaningful phone numbers
+                if normalized_phone and len(normalized_phone) >= MIN_PHONE_LENGTH:
                     if normalized_phone not in phone_numbers:
                         phone_numbers[normalized_phone] = []
                     team = teams_by_reg_id.get(member.get('team_id'))
