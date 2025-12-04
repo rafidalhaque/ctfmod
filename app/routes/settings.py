@@ -1571,3 +1571,129 @@ def get_team_statuses():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/<int:team_id>', methods=['GET'])
+@login_required
+def get_team(team_id):
+    """Get a specific team's details for editing."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        response = supabase.table('teams').select('*').eq('id', team_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Team not found'}), 404
+        return jsonify({'success': True, 'data': response.data[0]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/<int:team_id>', methods=['PUT'])
+@login_required
+def update_team(team_id):
+    """Update a team's details."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        
+        # Check if team exists
+        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Team not found'}), 404
+        
+        # Fields that can be updated
+        allowed_fields = [
+            'team_name', 'project_name', 'captain_name', 'captain_email',
+            'contact_name', 'contact_email', 'contact_number', 'status'
+        ]
+        
+        update_data = {}
+        for field in allowed_fields:
+            if field in data:
+                value = data[field]
+                # Strip strings and handle empty values
+                if isinstance(value, str):
+                    value = value.strip()
+                update_data[field] = value if value else None
+        
+        if not update_data:
+            return jsonify({'error': 'No valid fields to update'}), 400
+        
+        # Validate required fields
+        if 'team_name' in update_data and not update_data['team_name']:
+            return jsonify({'error': 'Team name is required'}), 400
+        
+        supabase.table('teams').update(update_data).eq('id', team_id).execute()
+        return jsonify({'success': True, 'message': 'Team updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/participants/<int:participant_id>', methods=['GET'])
+@login_required
+def get_participant(participant_id):
+    """Get a specific participant's details for editing."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        response = supabase.table('team_members').select('*').eq('id', participant_id).execute()
+        if not response.data:
+            return jsonify({'error': 'Participant not found'}), 404
+        return jsonify({'success': True, 'data': response.data[0]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/participants/<int:participant_id>', methods=['PUT'])
+@login_required
+def update_participant(participant_id):
+    """Update a participant's details."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        
+        # Check if participant exists
+        existing = supabase.table('team_members').select('id').eq('id', participant_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Participant not found'}), 404
+        
+        # Fields that can be updated (phone is the database column name)
+        allowed_fields = [
+            'name', 'full_name', 'email', 'phone', 'institution',
+            'class', 'gender'
+        ]
+        
+        update_data = {}
+        for field in allowed_fields:
+            if field in data:
+                value = data[field]
+                # Strip strings and handle empty values
+                if isinstance(value, str):
+                    value = value.strip()
+                update_data[field] = value if value else None
+        
+        if not update_data:
+            return jsonify({'error': 'No valid fields to update'}), 400
+        
+        # Validate required fields
+        if 'name' in update_data and not update_data['name']:
+            return jsonify({'error': 'Name is required'}), 400
+        
+        supabase.table('team_members').update(update_data).eq('id', participant_id).execute()
+        return jsonify({'success': True, 'message': 'Participant updated successfully'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

@@ -50,11 +50,12 @@
                             <th>Institution</th>
                             <th>CTFd Username</th>
                             <th>CTFd Password</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for participant in participants %}
-                        <tr class="hover participant-row">
+                        <tr class="hover participant-row" data-participant-id="{{ participant.id }}">
                             <td>
                                 <div class="flex items-center gap-3">
                                     <div class="avatar placeholder">
@@ -121,10 +122,17 @@
                                 <span class="text-base-content/50">-</span>
                                 {% endif %}
                             </td>
+                            <td>
+                                <button onclick="openEditParticipantModal({{ participant.id }})" class="btn btn-xs btn-ghost" title="Edit Participant">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                </button>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="9" class="text-center text-base-content/50 py-8">
+                            <td colspan="10" class="text-center text-base-content/50 py-8">
                                 No participants found.
                             </td>
                         </tr>
@@ -139,6 +147,75 @@
         </div>
     </div>
 </div>
+
+<!-- Edit Participant Modal -->
+<dialog id="editParticipantModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">Edit Participant</h3>
+        <form id="editParticipantForm">
+            <input type="hidden" id="editParticipantId" />
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Name *</span>
+                    </label>
+                    <input type="text" id="editParticipantName" class="input input-bordered" required />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Full Name</span>
+                    </label>
+                    <input type="text" id="editParticipantFullName" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Email</span>
+                    </label>
+                    <input type="email" id="editParticipantEmail" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Phone</span>
+                    </label>
+                    <input type="text" id="editParticipantPhone" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Institution</span>
+                    </label>
+                    <input type="text" id="editParticipantInstitution" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Class</span>
+                    </label>
+                    <input type="text" id="editParticipantClass" class="input input-bordered" />
+                </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Gender</span>
+                    </label>
+                    <select id="editParticipantGender" class="select select-bordered">
+                        <option value="">Not specified</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-action">
+                <button type="button" onclick="closeEditParticipantModal()" class="btn">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <span id="editParticipantBtnText">Save Changes</span>
+                    <span id="editParticipantSpinner" class="loading loading-spinner loading-sm hidden"></span>
+                </button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -183,5 +260,96 @@ function filterParticipants() {
     
     document.getElementById('participantCount').textContent = visibleCount;
 }
+
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-end';
+    
+    let alertClass = 'alert-info';
+    if (type === 'success') alertClass = 'alert-success';
+    else if (type === 'error') alertClass = 'alert-error';
+    else if (type === 'warning') alertClass = 'alert-warning';
+    
+    toast.innerHTML = `<div class="alert ${alertClass}"><span>${message}</span></div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// Edit participant modal functions
+async function openEditParticipantModal(participantId) {
+    const modal = document.getElementById('editParticipantModal');
+    
+    try {
+        const response = await fetch(`/settings/participants/${participantId}`);
+        const result = await response.json();
+        
+        if (result.success) {
+            const participant = result.data;
+            document.getElementById('editParticipantId').value = participant.id;
+            document.getElementById('editParticipantName').value = participant.name || '';
+            document.getElementById('editParticipantFullName').value = participant.full_name || '';
+            document.getElementById('editParticipantEmail').value = participant.email || '';
+            document.getElementById('editParticipantPhone').value = participant.phone_number || participant.phone || '';
+            document.getElementById('editParticipantInstitution').value = participant.institution || '';
+            document.getElementById('editParticipantClass').value = participant.class || '';
+            document.getElementById('editParticipantGender').value = participant.gender || '';
+            modal.showModal();
+        } else {
+            showToast('Error: ' + (result.error || 'Failed to load participant data'), 'error');
+        }
+    } catch (error) {
+        showToast('Error loading participant: ' + error.message, 'error');
+    }
+}
+
+function closeEditParticipantModal() {
+    document.getElementById('editParticipantModal').close();
+}
+
+document.getElementById('editParticipantForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const participantId = document.getElementById('editParticipantId').value;
+    const btnText = document.getElementById('editParticipantBtnText');
+    const spinner = document.getElementById('editParticipantSpinner');
+    
+    btnText.textContent = 'Saving...';
+    spinner.classList.remove('hidden');
+    
+    const data = {
+        name: document.getElementById('editParticipantName').value,
+        full_name: document.getElementById('editParticipantFullName').value,
+        email: document.getElementById('editParticipantEmail').value,
+        phone: document.getElementById('editParticipantPhone').value,
+        institution: document.getElementById('editParticipantInstitution').value,
+        class: document.getElementById('editParticipantClass').value,
+        gender: document.getElementById('editParticipantGender').value
+    };
+    
+    try {
+        const response = await fetch(`/settings/participants/${participantId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Participant updated successfully', 'success');
+            closeEditParticipantModal();
+            location.reload();
+        } else {
+            showToast('Error: ' + (result.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        showToast('Error updating participant: ' + error.message, 'error');
+    } finally {
+        btnText.textContent = 'Save Changes';
+        spinner.classList.add('hidden');
+    }
+});
 </script>
 {% endblock %}
