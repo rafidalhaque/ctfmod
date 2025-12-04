@@ -1425,20 +1425,25 @@ def participants_list():
             
             # Get team names and credentials for each participant
             # First, build a lookup dict of teams by registration_id for efficiency
-            teams_response = supabase.table('teams').select('registration_id, team_name').execute()
+            teams_response = supabase.table('teams').select('id, registration_id, team_name').execute()
             teams_by_registration_id = {}
             if teams_response.data:
                 for team in teams_response.data:
                     if team.get('registration_id'):
-                        teams_by_registration_id[team['registration_id']] = team['team_name']
+                        teams_by_registration_id[team['registration_id']] = {
+                            'id': team['id'],
+                            'team_name': team['team_name']
+                        }
             
             for participant in participants:
-                # Get team name (team_members.team_id references teams.registration_id)
+                # Get team name and id (team_members.team_id references teams.registration_id)
                 team_id = participant.get('team_id')
                 if team_id and team_id in teams_by_registration_id:
-                    participant['team_name'] = teams_by_registration_id[team_id]
+                    participant['team_name'] = teams_by_registration_id[team_id]['team_name']
+                    participant['team_db_id'] = teams_by_registration_id[team_id]['id']
                 else:
                     participant['team_name'] = 'No Team'
+                    participant['team_db_id'] = None
                 
                 # Get user credentials
                 creds_response = supabase.table('ctfd_user_credentials').select('*').eq('member_id', participant['id']).execute()

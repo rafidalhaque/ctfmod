@@ -142,7 +142,9 @@
                         <tr>
                             <th>Name</th>
                             <th>Email</th>
-                            <th>Role</th>
+                            <th>Class</th>
+                            <th>Phone Number</th>
+                            <th>Gender</th>
                             <th>Institution</th>
                             <th>CTFd Username</th>
                             <th>CTFd Password</th>
@@ -167,13 +169,9 @@
                                 </div>
                             </td>
                             <td>{{ member.email or '-' }}</td>
-                            <td>
-                                {% if member.role %}
-                                <span class="badge badge-outline badge-sm">{{ member.role }}</span>
-                                {% else %}
-                                <span class="text-base-content/50">-</span>
-                                {% endif %}
-                            </td>
+                            <td>{{ member.class or '-' }}</td>
+                            <td>{{ member.phone_number or member.phone or '-' }}</td>
+                            <td>{{ member.gender or '-' }}</td>
                             <td>{{ member.institution or '-' }}</td>
                             <td>
                                 {% if member.credentials %}
@@ -207,7 +205,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center text-base-content/50 py-8">
+                            <td colspan="8" class="text-center text-base-content/50 py-8">
                                 No team members found.
                             </td>
                         </tr>

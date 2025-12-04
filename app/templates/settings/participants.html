@@ -44,7 +44,9 @@
                             <th>Name</th>
                             <th>Email</th>
                             <th>Team</th>
-                            <th>Role</th>
+                            <th>Class</th>
+                            <th>Phone Number</th>
+                            <th>Gender</th>
                             <th>Institution</th>
                             <th>CTFd Username</th>
                             <th>CTFd Password</th>
@@ -72,14 +74,20 @@
                                 <span class="text-sm">{{ participant.email or '-' }}</span>
                             </td>
                             <td>
+                                {% if participant.team_db_id %}
+                                <a href="{{ url_for('settings.team_detail', team_id=participant.team_db_id) }}" class="badge badge-outline badge-sm hover:badge-primary cursor-pointer">{{ participant.team_name }}</a>
+                                {% else %}
                                 <span class="badge badge-outline badge-sm">{{ participant.team_name }}</span>
+                                {% endif %}
                             </td>
                             <td>
-                                {% if participant.role %}
-                                <span class="badge badge-ghost badge-sm">{{ participant.role }}</span>
-                                {% else %}
-                                <span class="text-base-content/50">-</span>
-                                {% endif %}
+                                <span class="text-sm">{{ participant.class or '-' }}</span>
+                            </td>
+                            <td>
+                                <span class="text-sm">{{ participant.phone_number or participant.phone or '-' }}</span>
+                            </td>
+                            <td>
+                                <span class="text-sm">{{ participant.gender or '-' }}</span>
                             </td>
                             <td>
                                 <span class="text-sm">{{ participant.institution or '-' }}</span>
@@ -116,7 +124,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center text-base-content/50 py-8">
+                            <td colspan="9" class="text-center text-base-content/50 py-8">
                                 No participants found.
                             </td>
                         </tr>
