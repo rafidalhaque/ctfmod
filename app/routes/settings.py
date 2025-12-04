@@ -4,9 +4,12 @@ from app.supabase_client import get_supabase_client
 import secrets
 import os
 import uuid
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from werkzeug.utils import secure_filename
+
+logger = logging.getLogger(__name__)
 
 settings_bp = Blueprint('settings', __name__)
 
@@ -1352,7 +1355,7 @@ def bulk_send_email():
                 supabase.table('email_audit_logs').insert(audit_logs).execute()
             except Exception as log_error:
                 # Log the error but don't fail the request
-                print(f"Warning: Failed to save email audit logs: {log_error}")
+                logger.warning("Failed to save email audit logs: %s", log_error)
         
         return jsonify({
             'success': True,
@@ -1808,9 +1811,9 @@ def clear_email_audit_logs():
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Delete all logs - we use a filter that matches all records
-        # Using gte on id with 0 to match all records
-        supabase.table('email_audit_logs').delete().gte('id', 0).execute()
+        # Delete all records by matching any id > 0 (all valid records have positive IDs)
+        # This is a common pattern in Supabase/PostgREST to delete all records
+        supabase.table('email_audit_logs').delete().gt('id', 0).execute()
         return jsonify({'success': True, 'message': 'All email audit logs cleared'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

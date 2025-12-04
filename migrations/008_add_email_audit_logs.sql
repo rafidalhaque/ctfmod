@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS email_audit_logs (
     recipient_name VARCHAR(255),
     team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
     team_name VARCHAR(255),
-    status VARCHAR(50) NOT NULL DEFAULT 'sent',  -- 'sent', 'failed'
+    status VARCHAR(50) NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'failed')),
     error_message TEXT,
     sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
