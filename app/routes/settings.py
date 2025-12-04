@@ -725,6 +725,7 @@ def preview_email_template():
             'team_name': 'Sample Team',
             'team_ctfd_username': 'sample_team',
             'team_ctfd_password': 'TeamPass456',
+            'registration_id': 'REG-12345',
             'event_name': 'Science Fest CTF',
             'site_name': 'CTF Manager',
             'challenge_name': 'Sample Challenge',
@@ -824,6 +825,7 @@ def test_send_email_template():
             'team_name': 'Test Team',
             'team_ctfd_username': 'test_team',
             'team_ctfd_password': 'TeamPass456',
+            'registration_id': 'REG-TEST-001',
             'event_name': event_name,
             'site_name': site_name,
             'challenge_name': 'Test Challenge',
@@ -1179,6 +1181,7 @@ def bulk_send_email():
                     'user_ctfd_password': user_cred.get('ctfd_password', ''),
                     'team_name': team.get('team_name', ''),
                     'team_db_id': team.get('id'),
+                    'registration_id': str(team_id) if team_id else '',
                     'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                     'team_ctfd_password': team_cred.get('ctfd_team_password', '')
                 }
@@ -1200,6 +1203,7 @@ def bulk_send_email():
                             'user_ctfd_password': '',
                             'team_name': team.get('team_name', ''),
                             'team_db_id': team.get('id'),
+                            'registration_id': str(registration_id) if registration_id else '',
                             'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                             'team_ctfd_password': team_cred.get('ctfd_team_password', '')
                         }
@@ -1247,6 +1251,7 @@ def bulk_send_email():
                         'user_ctfd_username': recipient['user_ctfd_username'],
                         'user_ctfd_password': recipient['user_ctfd_password'],
                         'team_name': recipient['team_name'],
+                        'registration_id': recipient.get('registration_id', ''),
                         'team_ctfd_username': recipient['team_ctfd_username'],
                         'team_ctfd_password': recipient['team_ctfd_password'],
                         'event_name': event_name,
@@ -1397,6 +1402,7 @@ def teams_list():
     supabase = get_supabase_client()
     teams = []
     total_count = 0
+    status_counts = {}
     
     # Pagination parameters
     page = request.args.get('page', 1, type=int)
@@ -1410,12 +1416,30 @@ def teams_list():
     
     if supabase:
         try:
+            # Get status counts for teams
+            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+            for status in valid_statuses:
+                response = supabase.table('teams').select('id', count='exact').eq('status', status).execute()
+                if hasattr(response, 'count') and response.count is not None:
+                    status_counts[status] = response.count
+                elif response.data:
+                    status_counts[status] = len(response.data)
+                else:
+                    status_counts[status] = 0
+            
             # Build base query
             query = supabase.table('teams').select('*', count='exact')
             
-            # Apply search filter (search by registration_id, team_name, captain_name)
+            # Apply search filter
+            # For text fields use ilike, for registration_id (BIGINT) check if search is numeric
             if search:
-                query = query.or_(f'registration_id.ilike.%{search}%,team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+                # Check if search term is numeric (for registration_id search)
+                if search.isdigit():
+                    # Search by registration_id (exact match) OR text fields
+                    query = query.or_(f'registration_id.eq.{search},team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+                else:
+                    # Search only text fields
+                    query = query.or_(f'team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
             
             # Apply status filter
             if status_filter:
@@ -1458,7 +1482,8 @@ def teams_list():
                           total_count=total_count,
                           total_pages=total_pages,
                           search=search,
-                          status_filter=status_filter)
+                          status_filter=status_filter,
+                          status_counts=status_counts)
 
 
 @settings_bp.route('/settings/teams/<int:team_id>')
@@ -1511,6 +1536,7 @@ def participants_list():
     supabase = get_supabase_client()
     participants = []
     total_count = 0
+    status_counts = {}
     
     # Pagination parameters
     page = request.args.get('page', 1, type=int)
@@ -1523,16 +1549,32 @@ def participants_list():
     
     if supabase:
         try:
-            # Get team names lookup first (for efficiency)
-            teams_response = supabase.table('teams').select('id, registration_id, team_name').execute()
+            # Get team names lookup first (for efficiency) with status
+            teams_response = supabase.table('teams').select('id, registration_id, team_name, status').execute()
             teams_by_registration_id = {}
             if teams_response.data:
                 for team in teams_response.data:
                     if team.get('registration_id'):
                         teams_by_registration_id[team['registration_id']] = {
                             'id': team['id'],
-                            'team_name': team['team_name']
+                            'team_name': team['team_name'],
+                            'status': team.get('status', 'pending')
                         }
+            
+            # Calculate participant counts by team status
+            all_members_response = supabase.table('team_members').select('id, team_id').execute()
+            all_members = all_members_response.data if all_members_response.data else []
+            
+            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+            for status in valid_statuses:
+                status_counts[status] = 0
+            
+            for member in all_members:
+                team_id = member.get('team_id')
+                if team_id and team_id in teams_by_registration_id:
+                    team_status = teams_by_registration_id[team_id].get('status', 'pending')
+                    if team_status in status_counts:
+                        status_counts[team_status] += 1
             
             # Build base query for participants
             query = supabase.table('team_members').select('*', count='exact')
@@ -1576,7 +1618,8 @@ def participants_list():
                           per_page=per_page,
                           total_count=total_count,
                           total_pages=total_pages,
-                          search=search)
+                          search=search,
+                          status_counts=status_counts)
 
 
 @settings_bp.route('/settings/teams/<int:team_id>/status', methods=['PUT'])
