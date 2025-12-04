@@ -1831,3 +1831,190 @@ def clear_email_audit_logs():
         return jsonify({'success': True, 'message': 'All email audit logs cleared'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/deduplication')
+@login_required
+def deduplication_checker():
+    """Render the deduplication checker page."""
+    return render_template('settings/deduplication.html')
+
+
+@settings_bp.route('/settings/deduplication/check', methods=['GET'])
+@login_required
+def check_duplicates():
+    """Check for duplicate registration data across teams and participants."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Fetch all teams
+        teams_response = supabase.table('teams').select('*').execute()
+        teams = teams_response.data if teams_response.data else []
+        
+        # Fetch all team members
+        members_response = supabase.table('team_members').select('*').execute()
+        members = members_response.data if members_response.data else []
+        
+        # Build lookup for teams by registration_id
+        teams_by_reg_id = {team['registration_id']: team for team in teams if team.get('registration_id')}
+        teams_by_id = {team['id']: team for team in teams}
+        
+        duplicates = {
+            'team_names': [],
+            'participant_emails': [],
+            'phone_numbers': [],
+            'captain_emails': [],
+            'members_in_multiple_teams': []
+        }
+        
+        # 1. Check for duplicate team names (case-insensitive)
+        team_names = {}
+        for team in teams:
+            name_lower = team['team_name'].lower().strip() if team.get('team_name') else ''
+            if name_lower:
+                if name_lower not in team_names:
+                    team_names[name_lower] = []
+                team_names[name_lower].append(team)
+        
+        for name, team_list in team_names.items():
+            if len(team_list) > 1:
+                duplicates['team_names'].append({
+                    'value': team_list[0]['team_name'],
+                    'count': len(team_list),
+                    'teams': [{
+                        'id': t['id'],
+                        'team_name': t['team_name'],
+                        'captain_name': t.get('captain_name'),
+                        'status': t.get('status')
+                    } for t in team_list]
+                })
+        
+        # 2. Check for duplicate participant emails (across all teams)
+        participant_emails = {}
+        for member in members:
+            email = member.get('email', '').lower().strip() if member.get('email') else ''
+            if email:
+                if email not in participant_emails:
+                    participant_emails[email] = []
+                team = teams_by_reg_id.get(member.get('team_id'))
+                participant_emails[email].append({
+                    'member_id': member['id'],
+                    'member_name': member.get('name'),
+                    'team_id': team['id'] if team else None,
+                    'team_name': team['team_name'] if team else 'Unknown Team',
+                    'team_status': team['status'] if team else None
+                })
+        
+        for email, member_list in participant_emails.items():
+            if len(member_list) > 1:
+                duplicates['participant_emails'].append({
+                    'value': email,
+                    'count': len(member_list),
+                    'occurrences': member_list
+                })
+        
+        # 3. Check for duplicate phone numbers (across participants)
+        phone_numbers = {}
+        for member in members:
+            phone = member.get('phone', '').strip() if member.get('phone') else ''
+            # Normalize phone number - remove common separators
+            if phone:
+                normalized_phone = ''.join(c for c in phone if c.isdigit() or c == '+')
+                if normalized_phone and len(normalized_phone) >= 7:  # Only check meaningful phone numbers
+                    if normalized_phone not in phone_numbers:
+                        phone_numbers[normalized_phone] = []
+                    team = teams_by_reg_id.get(member.get('team_id'))
+                    phone_numbers[normalized_phone].append({
+                        'member_id': member['id'],
+                        'member_name': member.get('name'),
+                        'phone': phone,
+                        'team_id': team['id'] if team else None,
+                        'team_name': team['team_name'] if team else 'Unknown Team',
+                        'team_status': team['status'] if team else None
+                    })
+        
+        for phone, member_list in phone_numbers.items():
+            if len(member_list) > 1:
+                duplicates['phone_numbers'].append({
+                    'value': member_list[0]['phone'],
+                    'count': len(member_list),
+                    'occurrences': member_list
+                })
+        
+        # 4. Check for duplicate captain emails
+        captain_emails = {}
+        for team in teams:
+            captain_email = team.get('captain_email', '').lower().strip() if team.get('captain_email') else ''
+            if captain_email:
+                if captain_email not in captain_emails:
+                    captain_emails[captain_email] = []
+                captain_emails[captain_email].append({
+                    'id': team['id'],
+                    'team_name': team['team_name'],
+                    'captain_name': team.get('captain_name'),
+                    'status': team.get('status')
+                })
+        
+        for email, team_list in captain_emails.items():
+            if len(team_list) > 1:
+                duplicates['captain_emails'].append({
+                    'value': email,
+                    'count': len(team_list),
+                    'teams': team_list
+                })
+        
+        # 5. Check for members appearing in multiple teams (by email or name + institution)
+        # Group by email first
+        member_teams = {}
+        for member in members:
+            email = member.get('email', '').lower().strip() if member.get('email') else ''
+            if email:
+                if email not in member_teams:
+                    member_teams[email] = set()
+                team_id = member.get('team_id')
+                if team_id:
+                    member_teams[email].add(team_id)
+        
+        for email, team_ids in member_teams.items():
+            if len(team_ids) > 1:
+                # Get details about these teams
+                member_info = next((m for m in members if m.get('email', '').lower().strip() == email), None)
+                team_details = []
+                for tid in team_ids:
+                    team = teams_by_reg_id.get(tid)
+                    if team:
+                        team_details.append({
+                            'id': team['id'],
+                            'team_name': team['team_name'],
+                            'status': team.get('status')
+                        })
+                
+                duplicates['members_in_multiple_teams'].append({
+                    'email': email,
+                    'name': member_info.get('name') if member_info else 'Unknown',
+                    'team_count': len(team_ids),
+                    'teams': team_details
+                })
+        
+        # Calculate summary statistics
+        summary = {
+            'total_teams': len(teams),
+            'total_participants': len(members),
+            'duplicate_team_names': len(duplicates['team_names']),
+            'duplicate_emails': len(duplicates['participant_emails']),
+            'duplicate_phones': len(duplicates['phone_numbers']),
+            'duplicate_captain_emails': len(duplicates['captain_emails']),
+            'members_in_multiple_teams': len(duplicates['members_in_multiple_teams'])
+        }
+        
+        return jsonify({
+            'success': True,
+            'summary': summary,
+            'duplicates': duplicates
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
