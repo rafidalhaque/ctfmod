@@ -1132,9 +1132,10 @@ def bulk_send_email():
         else:
             filtered_teams = all_teams
         
-        teams = {team['id']: team for team in filtered_teams}
+        # Use registration_id as key since team_members.team_id references teams.registration_id
+        teams = {team['registration_id']: team for team in filtered_teams if team.get('registration_id')}
         
-        # Fetch team credentials
+        # Fetch team credentials (keyed by team_id which is registration_id)
         team_creds_response = supabase.table('ctfd_team_credentials').select('*').execute()
         team_credentials = {cred['team_id']: cred for cred in (team_creds_response.data or [])}
         
@@ -1146,7 +1147,7 @@ def bulk_send_email():
         recipients = []
         for member in members:
             if member.get('email'):
-                team_id = member.get('team_id')
+                team_id = member.get('team_id')  # This references teams.registration_id
                 # Only include if team is in the filtered list
                 if team_id not in teams:
                     continue
@@ -1168,9 +1169,9 @@ def bulk_send_email():
         
         # Add team captains if requested (from filtered teams only)
         if include_team_captains:
-            for team_id, team in teams.items():
+            for registration_id, team in teams.items():
                 if team.get('captain_email'):
-                    team_cred = team_credentials.get(team_id, {})
+                    team_cred = team_credentials.get(registration_id, {})
                     # Check if captain email is not already in recipients
                     if not any(r['email'] == team['captain_email'] for r in recipients):
                         recipients.append({
@@ -1347,13 +1348,18 @@ def teams_list():
             
             # Fetch team credentials and attach to teams
             for team in teams:
-                # Get team credentials
-                creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', team['id']).execute()
-                team['credentials'] = creds_response.data[0] if creds_response.data else None
-                
-                # Get member count
-                members_response = supabase.table('team_members').select('id', count='exact').eq('team_id', team['id']).execute()
-                team['member_count'] = members_response.count if hasattr(members_response, 'count') else len(members_response.data) if members_response.data else 0
+                # Get team credentials (using registration_id as foreign key)
+                registration_id = team.get('registration_id')
+                if registration_id:
+                    creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', registration_id).execute()
+                    team['credentials'] = creds_response.data[0] if creds_response.data else None
+                    
+                    # Get member count (team_members.team_id references teams.registration_id)
+                    members_response = supabase.table('team_members').select('id', count='exact').eq('team_id', registration_id).execute()
+                    team['member_count'] = members_response.count if hasattr(members_response, 'count') else len(members_response.data) if members_response.data else 0
+                else:
+                    team['credentials'] = None
+                    team['member_count'] = 0
                 
         except Exception as e:
             flash(f'Error fetching teams: {str(e)}', 'error')
@@ -1380,13 +1386,18 @@ def team_detail(team_id):
                 flash('Team not found', 'error')
                 return redirect(url_for('settings.teams_list'))
             
-            # Fetch team credentials
-            creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', team_id).execute()
-            team_credentials = creds_response.data[0] if creds_response.data else None
-            
-            # Fetch team members with their credentials
-            members_response = supabase.table('team_members').select('*').eq('team_id', team_id).execute()
-            members = members_response.data if members_response.data else []
+            # Fetch team credentials (using registration_id as foreign key)
+            registration_id = team.get('registration_id')
+            if registration_id:
+                creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', registration_id).execute()
+                team_credentials = creds_response.data[0] if creds_response.data else None
+                
+                # Fetch team members with their credentials (team_members.team_id references teams.registration_id)
+                members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).execute()
+                members = members_response.data if members_response.data else []
+            else:
+                team_credentials = None
+                members = []
             
             # Attach user credentials to each member
             for member in members:
@@ -1413,11 +1424,19 @@ def participants_list():
             participants = members_response.data if members_response.data else []
             
             # Get team names and credentials for each participant
+            # First, build a lookup dict of teams by registration_id for efficiency
+            teams_response = supabase.table('teams').select('registration_id, team_name').execute()
+            teams_by_registration_id = {}
+            if teams_response.data:
+                for team in teams_response.data:
+                    if team.get('registration_id'):
+                        teams_by_registration_id[team['registration_id']] = team['team_name']
+            
             for participant in participants:
-                # Get team name
-                if participant.get('team_id'):
-                    team_response = supabase.table('teams').select('team_name').eq('id', participant['team_id']).execute()
-                    participant['team_name'] = team_response.data[0]['team_name'] if team_response.data else 'Unknown'
+                # Get team name (team_members.team_id references teams.registration_id)
+                team_id = participant.get('team_id')
+                if team_id and team_id in teams_by_registration_id:
+                    participant['team_name'] = teams_by_registration_id[team_id]
                 else:
                     participant['team_name'] = 'No Team'
                 
