@@ -1413,9 +1413,9 @@ def teams_list():
             # Build base query
             query = supabase.table('teams').select('*', count='exact')
             
-            # Apply search filter
+            # Apply search filter (search by registration_id, team_name, captain_name)
             if search:
-                query = query.or_(f'team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+                query = query.or_(f'registration_id.ilike.%{search}%,team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
             
             # Apply status filter
             if status_filter:

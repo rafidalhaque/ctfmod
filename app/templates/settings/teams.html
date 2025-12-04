@@ -34,7 +34,7 @@
         <div class="card-body py-3 sm:py-4">
             <form method="get" class="flex flex-col sm:flex-row gap-3">
                 <div class="form-control flex-1">
-                    <input type="text" name="search" value="{{ search }}" placeholder="Search by team name, captain..." class="input input-bordered input-sm sm:input-md w-full" />
+                    <input type="text" name="search" value="{{ search }}" placeholder="Search by registration ID, team name, captain..." class="input input-bordered input-sm sm:input-md w-full" />
                 </div>
                 <div class="form-control w-full sm:w-auto">
                     <select name="status" class="select select-bordered select-sm sm:select-md w-full sm:w-40">
@@ -96,6 +96,9 @@
                                 </label>
                                 <div>
                                     <div class="font-bold text-sm">{{ team.team_name }}</div>
+                                    {% if team.registration_id %}
+                                    <div class="text-xs text-base-content/50">ID: {{ team.registration_id }}</div>
+                                    {% endif %}
                                     {% if team.project_name %}
                                     <div class="text-xs text-base-content/50">{{ team.project_name }}</div>
                                     {% endif %}
@@ -153,6 +156,7 @@
                                     <input type="checkbox" class="checkbox checkbox-sm" id="selectAllCheckbox" onchange="toggleSelectAll()" />
                                 </label>
                             </th>
+                            <th>Reg ID</th>
                             <th>Team Name</th>
                             <th>Captain</th>
                             <th>Members</th>
@@ -169,6 +173,9 @@
                                 <label>
                                     <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="updateSelection()" />
                                 </label>
+                            </td>
+                            <td>
+                                <code class="text-xs bg-base-200 px-1 rounded">{{ team.registration_id or '-' }}</code>
                             </td>
                             <td>
                                 <div class="font-bold">{{ team.team_name }}</div>
@@ -236,7 +243,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="8" class="text-center text-base-content/50 py-8">
+                            <td colspan="9" class="text-center text-base-content/50 py-8">
                                 No teams found.
                             </td>
                         </tr>
