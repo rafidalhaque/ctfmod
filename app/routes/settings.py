@@ -1671,10 +1671,10 @@ def update_participant(participant_id):
         if not existing.data:
             return jsonify({'error': 'Participant not found'}), 404
         
-        # Fields that can be updated
+        # Fields that can be updated (phone is the database column name)
         allowed_fields = [
             'name', 'full_name', 'email', 'phone', 'institution',
-            'class', 'gender', 'phone_number'
+            'class', 'gender'
         ]
         
         update_data = {}
