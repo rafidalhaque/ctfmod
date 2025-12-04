@@ -1393,14 +1393,41 @@ def bulk_send_email():
 @settings_bp.route('/settings/teams')
 @login_required
 def teams_list():
-    """List all teams with their credentials."""
+    """List all teams with their credentials with pagination support."""
     supabase = get_supabase_client()
     teams = []
+    total_count = 0
+    
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    search = request.args.get('search', '', type=str).strip()
+    status_filter = request.args.get('status', '', type=str).strip()
+    
+    # Ensure valid values
+    page = max(1, page)
+    per_page = min(max(10, per_page), 100)  # Between 10 and 100
     
     if supabase:
         try:
-            # Fetch all teams
-            teams_response = supabase.table('teams').select('*').order('team_name').execute()
+            # Build base query
+            query = supabase.table('teams').select('*', count='exact')
+            
+            # Apply search filter
+            if search:
+                query = query.or_(f'team_name.ilike.%{search}%,captain_name.ilike.%{search}%,captain_email.ilike.%{search}%')
+            
+            # Apply status filter
+            if status_filter:
+                query = query.eq('status', status_filter)
+            
+            # Get total count first
+            count_response = query.execute()
+            total_count = count_response.count if hasattr(count_response, 'count') and count_response.count else len(count_response.data) if count_response.data else 0
+            
+            # Apply pagination
+            offset = (page - 1) * per_page
+            teams_response = query.order('team_name').range(offset, offset + per_page - 1).execute()
             teams = teams_response.data if teams_response.data else []
             
             # Fetch team credentials and attach to teams
@@ -1421,7 +1448,17 @@ def teams_list():
         except Exception as e:
             flash(f'Error fetching teams: {str(e)}', 'error')
     
-    return render_template('settings/teams.html', teams=teams)
+    # Calculate pagination info
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    
+    return render_template('settings/teams.html', 
+                          teams=teams,
+                          page=page,
+                          per_page=per_page,
+                          total_count=total_count,
+                          total_pages=total_pages,
+                          search=search,
+                          status_filter=status_filter)
 
 
 @settings_bp.route('/settings/teams/<int:team_id>')
@@ -1470,18 +1507,23 @@ def team_detail(team_id):
 @settings_bp.route('/settings/participants')
 @login_required
 def participants_list():
-    """List all participants with their credentials."""
+    """List all participants with their credentials with pagination support."""
     supabase = get_supabase_client()
     participants = []
+    total_count = 0
+    
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    search = request.args.get('search', '', type=str).strip()
+    
+    # Ensure valid values
+    page = max(1, page)
+    per_page = min(max(10, per_page), 100)  # Between 10 and 100
     
     if supabase:
         try:
-            # Fetch all team members
-            members_response = supabase.table('team_members').select('*').order('name').execute()
-            participants = members_response.data if members_response.data else []
-            
-            # Get team names and credentials for each participant
-            # First, build a lookup dict of teams by registration_id for efficiency
+            # Get team names lookup first (for efficiency)
             teams_response = supabase.table('teams').select('id, registration_id, team_name').execute()
             teams_by_registration_id = {}
             if teams_response.data:
@@ -1491,6 +1533,22 @@ def participants_list():
                             'id': team['id'],
                             'team_name': team['team_name']
                         }
+            
+            # Build base query for participants
+            query = supabase.table('team_members').select('*', count='exact')
+            
+            # Apply search filter
+            if search:
+                query = query.or_(f'name.ilike.%{search}%,email.ilike.%{search}%,institution.ilike.%{search}%')
+            
+            # Get total count first
+            count_response = query.execute()
+            total_count = count_response.count if hasattr(count_response, 'count') and count_response.count else len(count_response.data) if count_response.data else 0
+            
+            # Apply pagination
+            offset = (page - 1) * per_page
+            members_response = query.order('name').range(offset, offset + per_page - 1).execute()
+            participants = members_response.data if members_response.data else []
             
             for participant in participants:
                 # Get team name and id (team_members.team_id references teams.registration_id)
@@ -1509,7 +1567,16 @@ def participants_list():
         except Exception as e:
             flash(f'Error fetching participants: {str(e)}', 'error')
     
-    return render_template('settings/participants.html', participants=participants)
+    # Calculate pagination info
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    
+    return render_template('settings/participants.html', 
+                          participants=participants,
+                          page=page,
+                          per_page=per_page,
+                          total_count=total_count,
+                          total_pages=total_pages,
+                          search=search)
 
 
 @settings_bp.route('/settings/teams/<int:team_id>/status', methods=['PUT'])

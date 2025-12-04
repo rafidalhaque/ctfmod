@@ -7,25 +7,52 @@
     <!-- Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-            <h1 class="text-3xl font-bold">Teams</h1>
-            <p class="text-base-content/70">View all registered teams and their CTFd credentials</p>
+            <h1 class="text-2xl sm:text-3xl font-bold">Teams</h1>
+            <p class="text-base-content/70 text-sm sm:text-base">View all registered teams and their CTFd credentials</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ url_for('settings.deduplication_checker') }}" class="btn btn-warning btn-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                Check Duplicates
+                <span class="hidden sm:inline">Check Duplicates</span>
             </a>
             <a href="{{ url_for('settings.participants_list') }}" class="btn btn-outline btn-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
-                View Participants
+                <span class="hidden sm:inline">View Participants</span>
             </a>
             <a href="{{ url_for('settings.index') }}" class="btn btn-ghost btn-sm">
-                ← Back to Settings
+                ← <span class="hidden sm:inline">Back to Settings</span>
             </a>
+        </div>
+    </div>
+
+    <!-- Search and Filter -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body py-3 sm:py-4">
+            <form method="get" class="flex flex-col sm:flex-row gap-3">
+                <div class="form-control flex-1">
+                    <input type="text" name="search" value="{{ search }}" placeholder="Search by team name, captain..." class="input input-bordered input-sm sm:input-md w-full" />
+                </div>
+                <div class="form-control w-full sm:w-auto">
+                    <select name="status" class="select select-bordered select-sm sm:select-md w-full sm:w-40">
+                        <option value="">All Statuses</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+                        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+                        <option value="waitlisted" {% if status_filter == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
+                        <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm sm:btn-md flex-1 sm:flex-none">Search</button>
+                    {% if search or status_filter %}
+                    <a href="{{ url_for('settings.teams_list') }}" class="btn btn-ghost btn-sm sm:btn-md">Clear</a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
     </div>
 
@@ -34,11 +61,11 @@
         <div class="card-body py-3">
             <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                    <span class="font-semibold"><span id="selectedCount">0</span> teams selected</span>
+                    <span class="font-semibold text-sm sm:text-base"><span id="selectedCount">0</span> teams selected</span>
                     <button onclick="clearSelection()" class="btn btn-xs btn-ghost">Clear</button>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <select id="bulkStatusSelect" class="select select-bordered select-sm">
+                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                    <select id="bulkStatusSelect" class="select select-bordered select-sm flex-1 sm:flex-none">
                         <option value="">Change Status To...</option>
                         <option value="pending">Pending</option>
                         <option value="approved">Approved</option>
@@ -47,7 +74,7 @@
                         <option value="cancelled">Cancelled</option>
                     </select>
                     <button onclick="applyBulkStatus()" class="btn btn-primary btn-sm">
-                        Apply Status
+                        Apply
                     </button>
                 </div>
             </div>
@@ -56,9 +83,69 @@
 
     <!-- Teams Table -->
     <div class="card bg-base-100 shadow-xl">
-        <div class="card-body">
-            <div class="overflow-x-auto">
-                <table class="table">
+        <div class="card-body p-2 sm:p-6">
+            <!-- Mobile Card View -->
+            <div class="block lg:hidden space-y-3">
+                {% for team in teams %}
+                <div class="card bg-base-200 shadow-sm" data-team-id="{{ team.id }}">
+                    <div class="card-body p-3">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start gap-2">
+                                <label>
+                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="updateSelection()" />
+                                </label>
+                                <div>
+                                    <div class="font-bold text-sm">{{ team.team_name }}</div>
+                                    {% if team.project_name %}
+                                    <div class="text-xs text-base-content/50">{{ team.project_name }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <select class="select select-bordered select-xs status-select" data-team-id="{{ team.id }}" onchange="updateTeamStatus(this)">
+                                <option value="pending" {% if team.status == 'pending' %}selected{% endif %}>Pending</option>
+                                <option value="approved" {% if team.status == 'approved' %}selected{% endif %}>Approved</option>
+                                <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                                <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
+                                <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 text-xs mt-2">
+                            <div>
+                                <span class="text-base-content/50">Captain:</span>
+                                <div>{{ team.captain_name or '-' }}</div>
+                            </div>
+                            <div>
+                                <span class="text-base-content/50">Members:</span>
+                                <div><span class="badge badge-ghost badge-xs">{{ team.member_count }}</span></div>
+                            </div>
+                            {% if team.credentials %}
+                            <div>
+                                <span class="text-base-content/50">Username:</span>
+                                <div><code class="text-xs">{{ team.credentials.ctfd_team_username }}</code></div>
+                            </div>
+                            <div>
+                                <span class="text-base-content/50">Password:</span>
+                                <div class="flex items-center gap-1">
+                                    <code class="text-xs password-display" data-password="{{ team.credentials.ctfd_team_password }}">••••••</code>
+                                    <button onclick="togglePassword(this)" class="btn btn-xs btn-ghost p-0">👁</button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="openEditTeamModal({{ team.id }})" class="btn btn-xs btn-ghost flex-1">Edit</button>
+                            <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary flex-1">Details</a>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-base-content/50 py-8">No teams found.</div>
+                {% endfor %}
+            </div>
+
+            <!-- Desktop Table View -->
+            <div class="hidden lg:block overflow-x-auto">
+                <table class="table table-sm">
                     <thead>
                         <tr>
                             <th>
@@ -142,7 +229,7 @@
                                         </svg>
                                     </button>
                                     <a href="{{ url_for('settings.team_detail', team_id=team.id) }}" class="btn btn-xs btn-primary">
-                                        View Details
+                                        View
                                     </a>
                                 </div>
                             </td>
@@ -158,8 +245,41 @@
                 </table>
             </div>
             
-            <div class="mt-4 text-sm text-base-content/50">
-                <p>Total teams: {{ teams|length }}</p>
+            <!-- Pagination -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 pt-4 border-t border-base-300">
+                <div class="text-sm text-base-content/70">
+                    Showing {{ ((page - 1) * per_page) + 1 if teams else 0 }} - {{ ((page - 1) * per_page) + teams|length }} of {{ total_count }} teams
+                </div>
+                <div class="join">
+                    {% if page > 1 %}
+                    <a href="{{ url_for('settings.teams_list', page=page-1, per_page=per_page, search=search, status=status_filter) }}" class="join-item btn btn-sm">«</a>
+                    {% else %}
+                    <button class="join-item btn btn-sm btn-disabled">«</button>
+                    {% endif %}
+                    
+                    {% set show_left_ellipsis = page > 3 %}
+                    {% set show_right_ellipsis = page < total_pages - 2 %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == 1 %}
+                        <a href="{{ url_for('settings.teams_list', page=1, per_page=per_page, search=search, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">1</a>
+                        {% elif p == 2 and show_left_ellipsis %}
+                        <button class="join-item btn btn-sm btn-disabled">...</button>
+                        {% elif p == total_pages %}
+                        <a href="{{ url_for('settings.teams_list', page=total_pages, per_page=per_page, search=search, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">{{ total_pages }}</a>
+                        {% elif p == total_pages - 1 and show_right_ellipsis %}
+                        <button class="join-item btn btn-sm btn-disabled">...</button>
+                        {% elif p >= page - 1 and p <= page + 1 %}
+                        <a href="{{ url_for('settings.teams_list', page=p, per_page=per_page, search=search, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <a href="{{ url_for('settings.teams_list', page=page+1, per_page=per_page, search=search, status=status_filter) }}" class="join-item btn btn-sm">»</a>
+                    {% else %}
+                    <button class="join-item btn btn-sm btn-disabled">»</button>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -245,14 +365,15 @@
 {% block extra_js %}
 <script>
 function togglePassword(btn) {
-    const row = btn.closest('tr');
-    const display = row.querySelector('.password-display');
+    // Find password display in the same card/row
+    const container = btn.closest('.card-body') || btn.closest('tr');
+    const display = container.querySelector('.password-display');
     const password = display.dataset.password;
     
-    if (display.textContent === '••••••••') {
+    if (display.textContent === '••••••••' || display.textContent === '••••••') {
         display.textContent = password;
     } else {
-        display.textContent = '••••••••';
+        display.textContent = '••••••';
     }
 }
 
