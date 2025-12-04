@@ -1147,9 +1147,18 @@ def bulk_send_email():
         user_credentials = {cred['member_id']: cred for cred in (user_creds_response.data or [])}
         
         # Prepare recipients - only include members from filtered teams
-        recipients = []
+        # Use a dict keyed by email to prevent duplicates (same email receiving multiple emails)
+        recipients_by_email = {}
         for member in members:
-            if member.get('email'):
+            email = member.get('email')
+            if email:
+                # Normalize email to lowercase for deduplication
+                email_lower = email.lower().strip()
+                
+                # Skip if we already have this email
+                if email_lower in recipients_by_email:
+                    continue
+                
                 team_id = member.get('team_id')  # This references teams.registration_id
                 # Only include if team is in the filtered list
                 if team_id not in teams:
@@ -1159,36 +1168,41 @@ def bulk_send_email():
                 team_cred = team_credentials.get(team_id, {})
                 user_cred = user_credentials.get(member.get('id'), {})
                 
-                recipients.append({
-                    'email': member['email'],
+                recipients_by_email[email_lower] = {
+                    'email': email,
                     'user_name': member.get('name', ''),
-                    'user_email': member.get('email', ''),
+                    'user_email': email,
                     'user_ctfd_username': user_cred.get('ctfd_username', ''),
                     'user_ctfd_password': user_cred.get('ctfd_password', ''),
                     'team_name': team.get('team_name', ''),
                     'team_db_id': team.get('id'),
                     'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                     'team_ctfd_password': team_cred.get('ctfd_team_password', '')
-                })
+                }
         
         # Add team captains if requested (from filtered teams only)
         if include_team_captains:
             for registration_id, team in teams.items():
-                if team.get('captain_email'):
+                captain_email = team.get('captain_email')
+                if captain_email:
+                    captain_email_lower = captain_email.lower().strip()
                     team_cred = team_credentials.get(registration_id, {})
                     # Check if captain email is not already in recipients
-                    if not any(r['email'] == team['captain_email'] for r in recipients):
-                        recipients.append({
-                            'email': team['captain_email'],
+                    if captain_email_lower not in recipients_by_email:
+                        recipients_by_email[captain_email_lower] = {
+                            'email': captain_email,
                             'user_name': team.get('captain_name', ''),
-                            'user_email': team.get('captain_email', ''),
+                            'user_email': captain_email,
                             'user_ctfd_username': '',
                             'user_ctfd_password': '',
                             'team_name': team.get('team_name', ''),
                             'team_db_id': team.get('id'),
                             'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
                             'team_ctfd_password': team_cred.get('ctfd_team_password', '')
-                        })
+                        }
+        
+        # Convert recipients dict back to a list
+        recipients = list(recipients_by_email.values())
         
         if not recipients:
             return jsonify({'error': 'No recipients found with valid email addresses'}), 400
