@@ -32,7 +32,7 @@
                 </svg>
             </div>
             <div class="stat-title">Total Emails</div>
-            <div class="stat-value text-primary">{{ logs|length }}</div>
+            <div class="stat-value text-primary">{{ status_counts.get('sent', 0) + status_counts.get('failed', 0) }}</div>
         </div>
         
         <div class="stat">
@@ -42,7 +42,7 @@
                 </svg>
             </div>
             <div class="stat-title">Sent Successfully</div>
-            <div class="stat-value text-success">{{ logs|selectattr('status', 'equalto', 'sent')|list|length }}</div>
+            <div class="stat-value text-success">{{ status_counts.get('sent', 0) }}</div>
         </div>
         
         <div class="stat">
@@ -52,33 +52,40 @@
                 </svg>
             </div>
             <div class="stat-title">Failed</div>
-            <div class="stat-value text-error">{{ logs|selectattr('status', 'equalto', 'failed')|list|length }}</div>
+            <div class="stat-value text-error">{{ status_counts.get('failed', 0) }}</div>
         </div>
     </div>
 
     <!-- Filter Controls -->
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body py-4">
-            <div class="flex flex-wrap gap-4 items-center">
+            <form method="get" class="flex flex-wrap gap-4 items-end">
                 <div class="form-control">
                     <label class="label py-0">
                         <span class="label-text">Filter by Status</span>
                     </label>
-                    <select id="statusFilter" class="select select-bordered select-sm" onchange="filterLogs()">
+                    <select name="status" class="select select-bordered select-sm">
                         <option value="">All</option>
-                        <option value="sent">Sent</option>
-                        <option value="failed">Failed</option>
+                        <option value="sent" {% if status_filter == 'sent' %}selected{% endif %}>Sent</option>
+                        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
                     </select>
                 </div>
                 
                 <div class="form-control flex-1">
                     <label class="label py-0">
-                        <span class="label-text">Search</span>
+                        <span class="label-text">Search (client-side)</span>
                     </label>
                     <input type="text" id="searchInput" placeholder="Search by email, name, or team..." 
                            class="input input-bordered input-sm w-full max-w-xs" onkeyup="filterLogs()" />
                 </div>
-            </div>
+                
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">Apply Filter</button>
+                    {% if status_filter %}
+                    <a href="{{ url_for('settings.email_audit_logs') }}" class="btn btn-ghost btn-sm">Clear</a>
+                    {% endif %}
+                </div>
+            </form>
         </div>
     </div>
 
@@ -171,8 +178,52 @@
                 </table>
             </div>
             
-            <div class="mt-4 text-sm text-base-content/50">
-                <p>Showing {{ logs|length }} log entries (most recent first)</p>
+            <!-- Pagination -->
+            <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 pt-4 border-t border-base-300">
+                <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+                    <div class="text-sm text-base-content/70">
+                        Showing {{ ((page - 1) * per_page) + 1 if logs else 0 }} - {{ ((page - 1) * per_page) + logs|length }} of {{ total_count }} log entries
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-base-content/70">Per page:</span>
+                        <select id="perPageSelect" class="select select-bordered select-xs" onchange="changePerPage(this.value)">
+                            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="join">
+                    {% if page > 1 %}
+                    <a href="{{ url_for('settings.email_audit_logs', page=page-1, per_page=per_page, status=status_filter) }}" class="join-item btn btn-sm">«</a>
+                    {% else %}
+                    <button class="join-item btn btn-sm btn-disabled">«</button>
+                    {% endif %}
+                    
+                    {% set show_left_ellipsis = page > 3 %}
+                    {% set show_right_ellipsis = page < total_pages - 2 %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == 1 %}
+                        <a href="{{ url_for('settings.email_audit_logs', page=1, per_page=per_page, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">1</a>
+                        {% elif p == 2 and show_left_ellipsis %}
+                        <button class="join-item btn btn-sm btn-disabled">...</button>
+                        {% elif p == total_pages %}
+                        <a href="{{ url_for('settings.email_audit_logs', page=total_pages, per_page=per_page, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">{{ total_pages }}</a>
+                        {% elif p == total_pages - 1 and show_right_ellipsis %}
+                        <button class="join-item btn btn-sm btn-disabled">...</button>
+                        {% elif p >= page - 1 and p <= page + 1 %}
+                        <a href="{{ url_for('settings.email_audit_logs', page=p, per_page=per_page, status=status_filter) }}" class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">{{ p }}</a>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <a href="{{ url_for('settings.email_audit_logs', page=page+1, per_page=per_page, status=status_filter) }}" class="join-item btn btn-sm">»</a>
+                    {% else %}
+                    <button class="join-item btn btn-sm btn-disabled">»</button>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -207,23 +258,20 @@
 {% block extra_js %}
 <script>
 function filterLogs() {
-    const statusFilter = document.getElementById('statusFilter').value.toLowerCase();
     const searchInput = document.getElementById('searchInput').value.toLowerCase();
     const rows = document.querySelectorAll('.log-row');
     
     rows.forEach(row => {
-        const status = row.dataset.status;
         const email = row.dataset.email;
         const name = row.dataset.name;
         const team = row.dataset.team;
         
-        let statusMatch = !statusFilter || status === statusFilter;
         let searchMatch = !searchInput || 
             email.includes(searchInput) || 
             name.includes(searchInput) || 
             team.includes(searchInput);
         
-        row.style.display = (statusMatch && searchMatch) ? '' : 'none';
+        row.style.display = searchMatch ? '' : 'none';
     });
 }
 
@@ -252,6 +300,13 @@ async function clearAllLogs() {
     } catch (error) {
         alert('Error clearing logs: ' + error.message);
     }
+}
+
+function changePerPage(perPage) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', perPage);
+    url.searchParams.set('page', '1'); // Reset to page 1 when changing per_page
+    window.location.href = url.toString();
 }
 </script>
 {% endblock %}

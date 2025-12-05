@@ -1869,19 +1869,60 @@ def update_participant(participant_id):
 @settings_bp.route('/settings/email-audit-logs')
 @login_required
 def email_audit_logs():
-    """View email audit logs page."""
+    """View email audit logs page with pagination."""
     supabase = get_supabase_client()
     logs = []
+    total_count = 0
+    status_counts = {'sent': 0, 'failed': 0}
+    
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    status_filter = request.args.get('status', '', type=str).strip()
+    
+    # Ensure valid values
+    page = max(1, page)
+    per_page = min(max(10, per_page), 100)  # Between 10 and 100
     
     if supabase:
         try:
-            # Fetch email audit logs ordered by most recent first
-            response = supabase.table('email_audit_logs').select('*').order('sent_at', desc=True).limit(500).execute()
-            logs = response.data if response.data else []
+            # Get status counts for all logs
+            for status in ['sent', 'failed']:
+                count_response = supabase.table('email_audit_logs').select('id', count='exact').eq('status', status).execute()
+                if hasattr(count_response, 'count') and count_response.count is not None:
+                    status_counts[status] = count_response.count
+                elif count_response.data:
+                    status_counts[status] = len(count_response.data)
+            
+            # Build base query
+            query = supabase.table('email_audit_logs').select('*', count='exact')
+            
+            # Apply status filter
+            if status_filter:
+                query = query.eq('status', status_filter)
+            
+            # Get total count first
+            count_response = query.execute()
+            total_count = count_response.count if hasattr(count_response, 'count') and count_response.count else len(count_response.data) if count_response.data else 0
+            
+            # Apply pagination
+            offset = (page - 1) * per_page
+            logs_response = query.order('sent_at', desc=True).range(offset, offset + per_page - 1).execute()
+            logs = logs_response.data if logs_response.data else []
         except Exception as e:
             flash(f'Error fetching email audit logs: {str(e)}', 'error')
     
-    return render_template('settings/email_audit_logs.html', logs=logs)
+    # Calculate pagination info
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    
+    return render_template('settings/email_audit_logs.html', 
+                          logs=logs,
+                          page=page,
+                          per_page=per_page,
+                          total_count=total_count,
+                          total_pages=total_pages,
+                          status_filter=status_filter,
+                          status_counts=status_counts)
 
 
 @settings_bp.route('/settings/email-audit-logs/api', methods=['GET'])
