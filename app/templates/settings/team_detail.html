@@ -67,12 +67,6 @@
                 <div>
                     <p class="text-sm text-base-content/50">Contact Person</p>
                     <p class="font-semibold">{{ team.contact_name or '-' }}</p>
-                    {% if team.contact_email %}
-                    <p class="text-sm text-base-content/50">{{ team.contact_email }}</p>
-                    {% endif %}
-                    {% if team.captain_name %}
-                    <p class="text-sm text-base-content/50">{{ team.captain_name }}</p>
-                    {% endif %}
                     {% if team.contact_number %}
                     <p class="text-sm text-base-content/50">{{ team.contact_number }}</p>
                     {% endif %}
