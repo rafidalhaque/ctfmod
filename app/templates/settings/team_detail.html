@@ -66,12 +66,10 @@
                 </div>
                 <div>
                     <p class="text-sm text-base-content/50">Contact Person</p>
-                    <p class="font-semibold">{{ team.contact_name or '-' }}</p>
-                    {% if team.contact_email %}
-                    <p class="text-sm text-base-content/50">{{ team.contact_email }}</p>
-                    {% endif %}
                     {% if team.contact_number %}
-                    <p class="text-sm text-base-content/50">{{ team.contact_number }}</p>
+                    <p class="font-semibold">{{ team.contact_number }}</p>
+                    {% else %}
+                    <p class="font-semibold">-</p>
                     {% endif %}
                 </div>
                 {% if team.registration_id %}
@@ -246,12 +244,7 @@
                     </label>
                     <input type="text" id="editTeamName" class="input input-bordered" required />
                 </div>
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Project Name</span>
-                    </label>
-                    <input type="text" id="editProjectName" class="input input-bordered" />
-                </div>
+
                 <div class="form-control">
                     <label class="label">
                         <span class="label-text">Captain Name</span>
@@ -264,18 +257,7 @@
                     </label>
                     <input type="email" id="editCaptainEmail" class="input input-bordered" />
                 </div>
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Contact Name</span>
-                    </label>
-                    <input type="text" id="editContactName" class="input input-bordered" />
-                </div>
-                <div class="form-control">
-                    <label class="label">
-                        <span class="label-text">Contact Email</span>
-                    </label>
-                    <input type="email" id="editContactEmail" class="input input-bordered" />
-                </div>
+
                 <div class="form-control">
                     <label class="label">
                         <span class="label-text">Contact Number</span>
@@ -486,11 +468,8 @@ async function openEditTeamModal(teamId) {
             const team = result.data;
             document.getElementById('editTeamId').value = team.id;
             document.getElementById('editTeamName').value = team.team_name || '';
-            document.getElementById('editProjectName').value = team.project_name || '';
             document.getElementById('editCaptainName').value = team.captain_name || '';
             document.getElementById('editCaptainEmail').value = team.captain_email || '';
-            document.getElementById('editContactName').value = team.contact_name || '';
-            document.getElementById('editContactEmail').value = team.contact_email || '';
             document.getElementById('editContactNumber').value = team.contact_number || '';
             document.getElementById('editTeamStatus').value = team.status || 'pending';
             modal.showModal();
@@ -518,11 +497,8 @@ document.getElementById('editTeamForm').addEventListener('submit', async functio
     
     const data = {
         team_name: document.getElementById('editTeamName').value,
-        project_name: document.getElementById('editProjectName').value,
         captain_name: document.getElementById('editCaptainName').value,
         captain_email: document.getElementById('editCaptainEmail').value,
-        contact_name: document.getElementById('editContactName').value,
-        contact_email: document.getElementById('editContactEmail').value,
         contact_number: document.getElementById('editContactNumber').value,
         status: document.getElementById('editTeamStatus').value
     };
