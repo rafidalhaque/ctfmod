@@ -1740,10 +1740,10 @@ def get_team_statuses():
         return jsonify({'error': str(e)}), 500
 
 
-@settings_bp.route('/settings/teams/<int:team_id>', methods=['GET'])
+@settings_bp.route('/settings/teams/<int:team_id>/json', methods=['GET'])
 @login_required
 def get_team(team_id):
-    """Get a specific team's details for editing."""
+    """Get a specific team's details for editing (JSON API)."""
     supabase = get_supabase_client()
     
     if not supabase:

@@ -622,7 +622,7 @@ async function openEditTeamModal(teamId) {
     const modal = document.getElementById('editTeamModal');
     
     try {
-        const response = await fetch(`/settings/teams/${teamId}`);
+        const response = await fetch(`/settings/teams/${teamId}/json`);
         const result = await response.json();
         
         if (result.success) {
