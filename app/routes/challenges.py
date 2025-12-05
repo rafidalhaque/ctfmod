@@ -195,12 +195,18 @@ def view_challenge(challenge_id):
         flash('Challenge not found.', 'error')
         return redirect(url_for('challenges.list_challenges'))
     
+    # Get GitHub repo info for PR linking
+    github_repo_owner = current_app.config.get('GITHUB_REPO_OWNER', '')
+    github_repo_name = current_app.config.get('GITHUB_REPO_NAME', '')
+    
     return render_template('challenges/view.html',
                          challenge=challenge,
                          readme_content=readme_content,
                          challenge_yml=challenge_yml,
                          rounds=rounds,
-                         artifacts=artifacts)
+                         artifacts=artifacts,
+                         github_repo_owner=github_repo_owner,
+                         github_repo_name=github_repo_name)
 
 
 @challenges_bp.route('/challenges/<int:challenge_id>/approve', methods=['POST'])

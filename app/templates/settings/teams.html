@@ -122,7 +122,7 @@
                         <div class="flex items-start justify-between">
                             <div class="flex items-start gap-2">
                                 <label>
-                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="updateSelection()" />
+                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="onMobileCheckboxChange(this)" />
                                 </label>
                                 <div>
                                     <div class="font-bold text-sm">{{ team.team_name }}</div>
@@ -201,7 +201,7 @@
                         <tr class="hover" data-team-id="{{ team.id }}">
                             <td>
                                 <label>
-                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="updateSelection()" />
+                                    <input type="checkbox" class="checkbox checkbox-sm team-checkbox" value="{{ team.id }}" onchange="onDesktopCheckboxChange(this)" />
                                 </label>
                             </td>
                             <td>
@@ -284,8 +284,19 @@
             
             <!-- Pagination -->
             <div class="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4 pt-4 border-t border-base-300">
-                <div class="text-sm text-base-content/70">
-                    Showing {{ ((page - 1) * per_page) + 1 if teams else 0 }} - {{ ((page - 1) * per_page) + teams|length }} of {{ total_count }} teams
+                <div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+                    <div class="text-sm text-base-content/70">
+                        Showing {{ ((page - 1) * per_page) + 1 if teams else 0 }} - {{ ((page - 1) * per_page) + teams|length }} of {{ total_count }} teams
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-base-content/70">Per page:</span>
+                        <select id="perPageSelect" class="select select-bordered select-xs" onchange="changePerPage(this.value)">
+                            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+                            <option value="20" {% if per_page == 20 %}selected{% endif %}>20</option>
+                            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="join">
                     {% if page > 1 %}
@@ -458,18 +469,54 @@ async function updateTeamStatus(selectElement) {
 // Bulk selection functions
 function toggleSelectAll() {
     const selectAll = document.getElementById('selectAllCheckbox');
-    const checkboxes = document.querySelectorAll('.team-checkbox');
+    // Only affect checkboxes in the visible view (desktop table)
+    const desktopCheckboxes = document.querySelectorAll('.hidden.lg\\:block .team-checkbox');
     
-    checkboxes.forEach(cb => {
+    desktopCheckboxes.forEach(cb => {
         cb.checked = selectAll.checked;
     });
     
+    // Sync mobile checkboxes with corresponding desktop checkboxes
+    syncMobileCheckboxes();
+    updateSelection();
+}
+
+function syncMobileCheckboxes() {
+    // Sync mobile checkboxes to match desktop checkbox states
+    const mobileCards = document.querySelectorAll('.block.lg\\:hidden .team-checkbox');
+    mobileCards.forEach(mobileCb => {
+        const teamId = mobileCb.value;
+        const desktopCb = document.querySelector(`.hidden.lg\\:block .team-checkbox[value="${teamId}"]`);
+        if (desktopCb) {
+            mobileCb.checked = desktopCb.checked;
+        }
+    });
+}
+
+function onMobileCheckboxChange(checkbox) {
+    // Sync the corresponding desktop checkbox
+    const teamId = checkbox.value;
+    const desktopCb = document.querySelector(`.hidden.lg\\:block .team-checkbox[value="${teamId}"]`);
+    if (desktopCb) {
+        desktopCb.checked = checkbox.checked;
+    }
+    updateSelection();
+}
+
+function onDesktopCheckboxChange(checkbox) {
+    // Sync the corresponding mobile checkbox
+    const teamId = checkbox.value;
+    const mobileCb = document.querySelector(`.block.lg\\:hidden .team-checkbox[value="${teamId}"]`);
+    if (mobileCb) {
+        mobileCb.checked = checkbox.checked;
+    }
     updateSelection();
 }
 
 function updateSelection() {
-    const checkboxes = document.querySelectorAll('.team-checkbox:checked');
-    const count = checkboxes.length;
+    // Only count checkboxes from the desktop view (which is the canonical source)
+    const desktopCheckboxes = document.querySelectorAll('.hidden.lg\\:block .team-checkbox:checked');
+    const count = desktopCheckboxes.length;
     const bulkBar = document.getElementById('bulkActionsBar');
     const selectedCount = document.getElementById('selectedCount');
     
@@ -482,10 +529,12 @@ function updateSelection() {
     }
     
     // Update select all checkbox state
-    const allCheckboxes = document.querySelectorAll('.team-checkbox');
+    const allDesktopCheckboxes = document.querySelectorAll('.hidden.lg\\:block .team-checkbox');
     const selectAll = document.getElementById('selectAllCheckbox');
-    selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
-    selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+    if (selectAll) {
+        selectAll.checked = allDesktopCheckboxes.length > 0 && count === allDesktopCheckboxes.length;
+        selectAll.indeterminate = count > 0 && count < allDesktopCheckboxes.length;
+    }
 }
 
 function clearSelection() {
@@ -493,7 +542,10 @@ function clearSelection() {
     checkboxes.forEach(cb => {
         cb.checked = false;
     });
-    document.getElementById('selectAllCheckbox').checked = false;
+    const selectAll = document.getElementById('selectAllCheckbox');
+    if (selectAll) {
+        selectAll.checked = false;
+    }
     updateSelection();
 }
 
@@ -504,7 +556,8 @@ async function applyBulkStatus() {
         return;
     }
     
-    const checkboxes = document.querySelectorAll('.team-checkbox:checked');
+    // Get team IDs only from desktop view to avoid duplicates
+    const checkboxes = document.querySelectorAll('.hidden.lg\\:block .team-checkbox:checked');
     const teamIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
     
     if (teamIds.length === 0) {
@@ -557,7 +610,7 @@ async function openEditTeamModal(teamId) {
     const modal = document.getElementById('editTeamModal');
     
     try {
-        const response = await fetch(`/settings/teams/${teamId}`);
+        const response = await fetch(`/settings/teams/${teamId}/json`);
         const result = await response.json();
         
         if (result.success) {
@@ -630,5 +683,12 @@ document.getElementById('editTeamForm').addEventListener('submit', async functio
         spinner.classList.add('hidden');
     }
 });
+
+function changePerPage(perPage) {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', perPage);
+    url.searchParams.set('page', '1'); // Reset to page 1 when changing per_page
+    window.location.href = url.toString();
+}
 </script>
 {% endblock %}

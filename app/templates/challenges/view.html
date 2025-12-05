@@ -260,7 +260,11 @@
                             <span class="text-base-content/70">PR Number</span>
                             <span class="font-medium">
                                 {% if challenge.pr_number %}
+                                {% if github_repo_owner and github_repo_name %}
+                                <a href="https://github.com/{{ github_repo_owner }}/{{ github_repo_name }}/pull/{{ challenge.pr_number }}" target="_blank" class="badge badge-info hover:badge-primary cursor-pointer">#{{ challenge.pr_number }}</a>
+                                {% else %}
                                 <span class="badge badge-info">#{{ challenge.pr_number }}</span>
+                                {% endif %}
                                 {% else %}
                                 N/A
                                 {% endif %}
