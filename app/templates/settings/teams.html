@@ -493,18 +493,6 @@ function syncMobileCheckboxes() {
     });
 }
 
-function syncDesktopCheckboxes() {
-    // Sync desktop checkboxes to match mobile checkbox states
-    const desktopCheckboxes = document.querySelectorAll('.hidden.lg\\:block .team-checkbox');
-    desktopCheckboxes.forEach(desktopCb => {
-        const teamId = desktopCb.value;
-        const mobileCb = document.querySelector(`.block.lg\\:hidden .team-checkbox[value="${teamId}"]`);
-        if (mobileCb) {
-            desktopCb.checked = mobileCb.checked;
-        }
-    });
-}
-
 function onMobileCheckboxChange(checkbox) {
     // Sync the corresponding desktop checkbox
     const teamId = checkbox.value;
