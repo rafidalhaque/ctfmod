@@ -11,6 +11,12 @@
             <p class="text-base-content/70">Team details and member credentials</p>
         </div>
         <div class="flex gap-2">
+            <button onclick="openSendEmailModal()" class="btn btn-sm btn-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Send Email
+            </button>
             <button onclick="openEditTeamModal({{ team.id }})" class="btn btn-sm btn-outline">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -359,6 +365,73 @@
         <button>close</button>
     </form>
 </dialog>
+
+<!-- Send Email to Team Modal -->
+<dialog id="sendEmailModal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+        <h3 class="font-bold text-lg mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 inline mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Send Email to Team
+        </h3>
+        
+        <div class="py-4">
+            <div class="alert alert-info mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <div>
+                    <p class="font-semibold">Team: {{ team.team_name }}</p>
+                    <p class="text-sm">Send email to all members ({{ members|length }}) of this team using a template.</p>
+                </div>
+            </div>
+            
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text font-semibold">Select Email Template *</span>
+                </label>
+                <select id="sendEmailTemplateSelect" class="select select-bordered w-full" required>
+                    <option value="">-- Select a template --</option>
+                </select>
+                <label class="label">
+                    <span class="label-text-alt text-base-content/50">Templates can be managed in <a href="{{ url_for('settings.email_templates') }}" class="link link-primary">Email Templates</a></span>
+                </label>
+            </div>
+            
+            <div class="form-control mb-4">
+                <label class="label cursor-pointer justify-start gap-3">
+                    <input type="checkbox" id="sendEmailIncludeCaptain" class="checkbox checkbox-primary" />
+                    <span class="label-text">Also send to team captain ({{ team.captain_email or 'no captain email' }})</span>
+                </label>
+            </div>
+            
+            <div id="sendEmailStatus" class="hidden">
+                <div class="flex items-center gap-3 mb-2">
+                    <span class="loading loading-spinner loading-md"></span>
+                    <span id="sendEmailStatusText">Sending emails...</span>
+                </div>
+            </div>
+            
+            <div id="sendEmailResult" class="hidden">
+                <div id="sendEmailResultAlert" class="alert">
+                    <span id="sendEmailResultText"></span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="modal-action">
+            <button type="button" onclick="closeSendEmailModal()" class="btn btn-ghost" id="sendEmailCancelBtn">Cancel</button>
+            <button type="button" onclick="startSendEmailToTeam()" class="btn btn-primary" id="sendEmailStartBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+                Send Email
+            </button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -605,5 +678,115 @@ document.getElementById('editMemberForm').addEventListener('submit', async funct
         spinner.classList.add('hidden');
     }
 });
+
+// Send Email to Team functions
+const teamId = {{ team.id }};
+let emailTemplates = [];
+
+async function loadEmailTemplates() {
+    try {
+        const response = await fetch('/settings/email-templates/list');
+        const result = await response.json();
+        
+        if (result.success) {
+            emailTemplates = result.data || [];
+            
+            // Populate the dropdown
+            const select = document.getElementById('sendEmailTemplateSelect');
+            select.innerHTML = '<option value="">-- Select a template --</option>';
+            emailTemplates.forEach(template => {
+                const option = document.createElement('option');
+                option.value = template.id;
+                option.textContent = template.name;
+                select.appendChild(option);
+            });
+        } else {
+            console.error('Failed to load templates:', result.error);
+            showToast('Failed to load email templates', 'error');
+        }
+    } catch (error) {
+        console.error('Failed to load email templates:', error);
+        showToast('Failed to load email templates', 'error');
+    }
+}
+
+function openSendEmailModal() {
+    const modal = document.getElementById('sendEmailModal');
+    document.getElementById('sendEmailTemplateSelect').value = '';
+    document.getElementById('sendEmailIncludeCaptain').checked = false;
+    document.getElementById('sendEmailStatus').classList.add('hidden');
+    document.getElementById('sendEmailResult').classList.add('hidden');
+    document.getElementById('sendEmailStartBtn').disabled = false;
+    document.getElementById('sendEmailStartBtn').classList.remove('hidden');
+    document.getElementById('sendEmailCancelBtn').textContent = 'Cancel';
+    
+    // Load templates
+    loadEmailTemplates();
+    
+    modal.showModal();
+}
+
+function closeSendEmailModal() {
+    document.getElementById('sendEmailModal').close();
+}
+
+async function startSendEmailToTeam() {
+    const templateId = document.getElementById('sendEmailTemplateSelect').value;
+    const includeCaptain = document.getElementById('sendEmailIncludeCaptain').checked;
+    
+    if (!templateId) {
+        showToast('Please select an email template', 'warning');
+        return;
+    }
+    
+    // Show status
+    document.getElementById('sendEmailStatus').classList.remove('hidden');
+    document.getElementById('sendEmailResult').classList.add('hidden');
+    document.getElementById('sendEmailStartBtn').disabled = true;
+    
+    try {
+        const response = await fetch(`/settings/teams/${teamId}/send-email`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                template_id: templateId,
+                include_team_captain: includeCaptain,
+                attachments: []
+            })
+        });
+        
+        const result = await response.json();
+        
+        document.getElementById('sendEmailStatus').classList.add('hidden');
+        document.getElementById('sendEmailResult').classList.remove('hidden');
+        
+        const alertElement = document.getElementById('sendEmailResultAlert');
+        const textElement = document.getElementById('sendEmailResultText');
+        
+        alertElement.classList.remove('alert-success', 'alert-error');
+        
+        if (result.success) {
+            alertElement.classList.add('alert-success');
+            textElement.textContent = result.message || `Sent ${result.sent} emails successfully!`;
+            document.getElementById('sendEmailCancelBtn').textContent = 'Close';
+            document.getElementById('sendEmailStartBtn').classList.add('hidden');
+        } else {
+            alertElement.classList.add('alert-error');
+            textElement.textContent = 'Error: ' + (result.error || 'Unknown error');
+            document.getElementById('sendEmailStartBtn').disabled = false;
+        }
+    } catch (error) {
+        document.getElementById('sendEmailStatus').classList.add('hidden');
+        document.getElementById('sendEmailResult').classList.remove('hidden');
+        
+        const alertElement = document.getElementById('sendEmailResultAlert');
+        alertElement.classList.remove('alert-success');
+        alertElement.classList.add('alert-error');
+        document.getElementById('sendEmailResultText').textContent = 'Error: ' + error.message;
+        document.getElementById('sendEmailStartBtn').disabled = false;
+    }
+}
 </script>
 {% endblock %}
