@@ -680,7 +680,7 @@ document.getElementById('editMemberForm').addEventListener('submit', async funct
 });
 
 // Send Email to Team functions
-const teamId = {{ team.id }};
+const teamId = {{ team.id | tojson }};
 let emailTemplates = [];
 
 async function loadEmailTemplates() {
