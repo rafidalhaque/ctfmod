@@ -589,6 +589,23 @@ def email_templates():
     return render_template('settings/email_templates.html', templates=templates)
 
 
+@settings_bp.route('/settings/email-templates/list', methods=['GET'])
+@login_required
+def list_email_templates():
+    """Get all email templates as JSON for dropdowns."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        response = supabase.table('email_templates').select('id, name, subject, description').order('name').execute()
+        templates = response.data if response.data else []
+        return jsonify({'success': True, 'data': templates})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @settings_bp.route('/settings/email-templates', methods=['POST'])
 @login_required
 def create_email_template():
@@ -1393,6 +1410,302 @@ def bulk_send_email():
         return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
     except Exception as e:
         return jsonify({'error': f'Failed to send bulk emails: {str(e)}'}), 500
+
+
+@settings_bp.route('/settings/teams/<int:team_id>/send-email', methods=['POST'])
+@login_required
+def send_email_to_team(team_id):
+    """Send email to all members of a single team using a template."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.base import MIMEBase
+    from email.mime.image import MIMEImage
+    from email import encoders
+    import re
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.json
+        template_id = data.get('template_id')
+        include_team_captain = data.get('include_team_captain', False)
+        attachment_ids = data.get('attachments', [])
+        
+        if not template_id:
+            return jsonify({'error': 'Template ID is required'}), 400
+        
+        # Fetch the team
+        team_response = supabase.table('teams').select('*').eq('id', team_id).execute()
+        if not team_response.data:
+            return jsonify({'error': 'Team not found'}), 404
+        
+        team = team_response.data[0]
+        registration_id = team.get('registration_id')
+        
+        # Fetch the template
+        template_response = supabase.table('email_templates').select('*').eq('id', template_id).execute()
+        if not template_response.data:
+            return jsonify({'error': 'Template not found'}), 404
+        
+        template = template_response.data[0]
+        
+        # Fetch SMTP settings
+        settings_response = supabase.table('settings').select('*').execute()
+        settings = {}
+        if settings_response.data:
+            for setting in settings_response.data:
+                settings[setting['key']] = setting['value']
+        
+        smtp_host = settings.get('smtp_host', '')
+        smtp_port = int(settings.get('smtp_port', 587))
+        smtp_username = settings.get('smtp_username', '')
+        smtp_password = settings.get('smtp_password', '')
+        sender_email = settings.get('smtp_sender_email', '')
+        sender_name = settings.get('smtp_sender_name', 'CTF Manager')
+        use_tls = settings.get('smtp_use_tls', 'true').lower() == 'true'
+        use_ssl = settings.get('smtp_use_ssl', 'false').lower() == 'true'
+        event_name = settings.get('event_name', 'CTF Event')
+        site_name = settings.get('site_name', 'CTF Manager')
+        
+        if not smtp_host or not sender_email:
+            return jsonify({'error': 'SMTP settings not configured. Please configure SMTP first.'}), 400
+        
+        # Fetch team members
+        members = []
+        if registration_id:
+            members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).execute()
+            members = members_response.data if members_response.data else []
+        
+        # Fetch team credentials
+        team_cred = {}
+        if registration_id:
+            team_creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', registration_id).execute()
+            if team_creds_response.data:
+                team_cred = team_creds_response.data[0]
+        
+        # Fetch user credentials
+        user_creds_response = supabase.table('ctfd_user_credentials').select('*').execute()
+        user_credentials = {cred['member_id']: cred for cred in (user_creds_response.data or [])}
+        
+        # Prepare recipients
+        recipients_by_email = {}
+        for member in members:
+            email = member.get('email')
+            if email:
+                email_lower = email.lower().strip()
+                if email_lower in recipients_by_email:
+                    continue
+                
+                user_cred = user_credentials.get(member.get('id'), {})
+                
+                recipients_by_email[email_lower] = {
+                    'email': email,
+                    'user_name': member.get('name', ''),
+                    'user_email': email,
+                    'user_ctfd_username': user_cred.get('ctfd_username', ''),
+                    'user_ctfd_password': user_cred.get('ctfd_password', ''),
+                    'team_name': team.get('team_name', ''),
+                    'team_db_id': team.get('id'),
+                    'registration_id': str(registration_id) if registration_id else '',
+                    'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
+                    'team_ctfd_password': team_cred.get('ctfd_team_password', '')
+                }
+        
+        # Add team captain if requested
+        if include_team_captain:
+            captain_email = team.get('captain_email')
+            if captain_email:
+                captain_email_lower = captain_email.lower().strip()
+                if captain_email_lower not in recipients_by_email:
+                    recipients_by_email[captain_email_lower] = {
+                        'email': captain_email,
+                        'user_name': team.get('captain_name', ''),
+                        'user_email': captain_email,
+                        'user_ctfd_username': '',
+                        'user_ctfd_password': '',
+                        'team_name': team.get('team_name', ''),
+                        'team_db_id': team.get('id'),
+                        'registration_id': str(registration_id) if registration_id else '',
+                        'team_ctfd_username': team_cred.get('ctfd_team_username', ''),
+                        'team_ctfd_password': team_cred.get('ctfd_team_password', '')
+                    }
+        
+        recipients = list(recipients_by_email.values())
+        
+        if not recipients:
+            return jsonify({'error': 'No recipients found with valid email addresses for this team'}), 400
+        
+        # Fetch attachments if provided
+        attachments = []
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', '')
+        if attachment_ids:
+            attachments_response = supabase.table('email_attachments').select('*').in_('id', attachment_ids).execute()
+            attachments = attachments_response.data if attachments_response.data else []
+        
+        # Connect to SMTP server and send emails
+        server = None
+        try:
+            if use_ssl:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                if use_tls:
+                    server.starttls()
+            
+            if smtp_username and smtp_password:
+                server.login(smtp_username, smtp_password)
+            
+            sent_count = 0
+            failed_count = 0
+            audit_logs = []
+            
+            for recipient in recipients:
+                error_message = None
+                try:
+                    # Replace variables in template
+                    subject = template['subject']
+                    body = template['body']
+                    
+                    variables = {
+                        'user_name': recipient['user_name'],
+                        'user_email': recipient['user_email'],
+                        'user_ctfd_username': recipient['user_ctfd_username'],
+                        'user_ctfd_password': recipient['user_ctfd_password'],
+                        'team_name': recipient['team_name'],
+                        'registration_id': recipient.get('registration_id', ''),
+                        'team_ctfd_username': recipient['team_ctfd_username'],
+                        'team_ctfd_password': recipient['team_ctfd_password'],
+                        'event_name': event_name,
+                        'site_name': site_name,
+                        'date': datetime.now().strftime('%Y-%m-%d'),
+                        'time': datetime.now().strftime('%H:%M')
+                    }
+                    
+                    for var_name, var_value in variables.items():
+                        subject = subject.replace('{{' + var_name + '}}', str(var_value or ''))
+                        body = body.replace('{{' + var_name + '}}', str(var_value or ''))
+                    
+                    # Create message
+                    msg = MIMEMultipart('mixed')
+                    msg['Subject'] = subject
+                    msg['From'] = f'{sender_name} <{sender_email}>'
+                    msg['To'] = recipient['email']
+                    
+                    msg_alternative = MIMEMultipart('alternative')
+                    msg_related = MIMEMultipart('related')
+                    
+                    # Plain text version
+                    text_content = body.replace('<br>', '\n').replace('<p>', '\n').replace('</p>', '\n')
+                    text_content = re.sub('<[^<]+?>', '', text_content)
+                    
+                    msg_alternative.attach(MIMEText(text_content, 'plain'))
+                    
+                    # Process inline images
+                    inline_images = []
+                    img_pattern = r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)([^"\']+)["\']'
+                    matches = re.findall(img_pattern, body)
+                    
+                    for i, match in enumerate(matches):
+                        filename = match.rstrip('}}')
+                        file_path = os.path.join(upload_folder, secure_filename(filename))
+                        
+                        if os.path.exists(file_path) and allowed_image(filename):
+                            cid = f'image{i}'
+                            body = re.sub(
+                                r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)' + re.escape(match) + r'["\']',
+                                f'src="cid:{cid}"',
+                                body
+                            )
+                            inline_images.append((file_path, cid, filename))
+                    
+                    msg_related.attach(MIMEText(body, 'html'))
+                    
+                    for file_path, cid, filename in inline_images:
+                        with open(file_path, 'rb') as img_file:
+                            img_data = img_file.read()
+                            ext = filename.rsplit('.', 1)[1].lower()
+                            mime_subtype = 'jpeg' if ext == 'jpg' else ext
+                            img = MIMEImage(img_data, _subtype=mime_subtype)
+                            img.add_header('Content-ID', f'<{cid}>')
+                            img.add_header('Content-Disposition', 'inline', filename=filename)
+                            msg_related.attach(img)
+                    
+                    msg_alternative.attach(msg_related)
+                    msg.attach(msg_alternative)
+                    
+                    # Attach file attachments
+                    for attachment in attachments:
+                        file_path = os.path.join(upload_folder, attachment['stored_filename'])
+                        if os.path.exists(file_path):
+                            with open(file_path, 'rb') as f:
+                                part = MIMEBase('application', 'octet-stream')
+                                part.set_payload(f.read())
+                                encoders.encode_base64(part)
+                                part.add_header(
+                                    'Content-Disposition',
+                                    f'attachment; filename="{attachment["original_filename"]}"'
+                                )
+                                msg.attach(part)
+                    
+                    server.sendmail(sender_email, recipient['email'], msg.as_string())
+                    sent_count += 1
+                    
+                    audit_logs.append({
+                        'template_id': template_id,
+                        'template_name': template.get('name', ''),
+                        'recipient_email': recipient['email'],
+                        'recipient_name': recipient['user_name'],
+                        'team_id': recipient.get('team_db_id'),
+                        'team_name': recipient['team_name'],
+                        'status': 'sent',
+                        'error_message': None
+                    })
+                except Exception as e:
+                    failed_count += 1
+                    error_message = str(e)
+                    
+                    audit_logs.append({
+                        'template_id': template_id,
+                        'template_name': template.get('name', ''),
+                        'recipient_email': recipient['email'],
+                        'recipient_name': recipient['user_name'],
+                        'team_id': recipient.get('team_db_id'),
+                        'team_name': recipient['team_name'],
+                        'status': 'failed',
+                        'error_message': error_message
+                    })
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass
+        
+        # Insert audit logs
+        if audit_logs:
+            try:
+                supabase.table('email_audit_logs').insert(audit_logs).execute()
+            except Exception as log_error:
+                logger.warning("Failed to save email audit logs: %s", log_error)
+        
+        return jsonify({
+            'success': True,
+            'sent': sent_count,
+            'failed': failed_count,
+            'total': len(recipients),
+            'message': f'Sent {sent_count} emails to {team.get("team_name", "team")}, {failed_count} failed'
+        })
+        
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'error': 'SMTP authentication failed. Check username and password.'}), 400
+    except smtplib.SMTPConnectError:
+        return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
+    except Exception as e:
+        return jsonify({'error': f'Failed to send emails to team: {str(e)}'}), 500
 
 
 @settings_bp.route('/settings/teams')
