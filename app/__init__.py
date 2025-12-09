@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask
 from flask_login import LoginManager
 from dotenv import load_dotenv
@@ -11,6 +12,16 @@ login_manager = LoginManager()
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Set appropriate log levels
+    logging.getLogger('app.ctfd_client').setLevel(logging.INFO)
+    logging.getLogger('app.routes.challenges').setLevel(logging.INFO)
     
     # File upload configuration
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
