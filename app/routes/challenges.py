@@ -1,11 +1,16 @@
 from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
+from app.ctfd_client import CTFdAPIClient, CTFdAPIException
 import requests
 import yaml
 import os
+import logging
 
 challenges_bp = Blueprint('challenges', __name__)
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token, base_path=None):
@@ -410,72 +415,131 @@ def request_changes(challenge_id):
 @challenges_bp.route('/challenges/<int:challenge_id>/push-to-ctfd', methods=['POST'])
 @login_required
 def push_to_ctfd(challenge_id):
-    """Push a challenge to CTFd."""
+    """Push a challenge to CTFd with comprehensive validation and error handling."""
     supabase = get_supabase_client()
     
-    if supabase:
-        try:
-            # Get challenge info
-            response = supabase.table('challenges').select('*').eq('id', challenge_id).single().execute()
-            challenge = response.data
-            
-            if not challenge:
-                return jsonify({'error': 'Challenge not found'}), 404
-            
-            ctfd_url = current_app.config.get('CTFD_URL')
-            ctfd_api_key = current_app.config.get('CTFD_API_KEY')
-            
-            if not ctfd_url or not ctfd_api_key:
-                return jsonify({'error': 'CTFd configuration missing'}), 500
-            
-            headers = {
-                'Authorization': f'Token {ctfd_api_key}',
-                'Content-Type': 'application/json'
-            }
-            
-            # Prepare challenge data for CTFd
-            ctfd_challenge = {
-                'name': challenge.get('name'),
-                'category': challenge.get('category'),
-                'description': challenge.get('description', ''),
-                'value': challenge.get('points', 100),
-                'type': 'standard',
-                'state': 'hidden'
-            }
-            
-            # Create challenge on CTFd
-            create_url = f'{ctfd_url.rstrip("/")}/api/v1/challenges'
-            create_response = requests.post(create_url, headers=headers, json=ctfd_challenge, timeout=30)
-            
-            if create_response.status_code in [200, 201]:
-                ctfd_response = create_response.json()
-                ctfd_id = ctfd_response.get('data', {}).get('id')
-                
-                # Update challenge with CTFd ID
-                supabase.table('challenges').update({
-                    'ctfd_id': ctfd_id,
-                    'pushed_to_ctfd': True
-                }).eq('id', challenge_id).execute()
-                
-                # Add flag if available
-                flag = challenge.get('flag')
-                if flag and ctfd_id:
-                    flag_url = f'{ctfd_url.rstrip("/")}/api/v1/flags'
-                    flag_data = {
-                        'challenge_id': ctfd_id,
-                        'content': flag,
-                        'type': 'static'
-                    }
-                    requests.post(flag_url, headers=headers, json=flag_data, timeout=30)
-                
-                return jsonify({'success': True, 'message': 'Challenge pushed to CTFd', 'ctfd_id': ctfd_id})
-            else:
-                return jsonify({'error': f'Failed to create challenge on CTFd: {create_response.text}'}), 400
-                
-        except Exception as e:
-            return jsonify({'error': str(e)}), 500
+    if not supabase:
+        logger.error("Database not configured")
+        return jsonify({'error': 'Database not configured'}), 500
     
-    return jsonify({'error': 'Database not configured'}), 500
+    try:
+        # Get challenge info
+        logger.info(f"Fetching challenge {challenge_id} from database")
+        response = supabase.table('challenges').select('*').eq('id', challenge_id).single().execute()
+        challenge = response.data
+        
+        if not challenge:
+            logger.warning(f"Challenge {challenge_id} not found")
+            return jsonify({'error': 'Challenge not found'}), 404
+        
+        # Get CTFd configuration
+        ctfd_url = current_app.config.get('CTFD_URL')
+        ctfd_api_key = current_app.config.get('CTFD_API_KEY')
+        
+        # Initialize CTFd client (validates configuration)
+        try:
+            ctfd_client = CTFdAPIClient(ctfd_url, ctfd_api_key)
+        except CTFdAPIException as e:
+            logger.error(f"CTFd configuration error: {e.message}")
+            return jsonify(e.to_dict()), 500
+        
+        # Fetch challenge.yml from GitHub for additional metadata
+        challenge_yml = None
+        github_token = current_app.config.get('GITHUB_TOKEN')
+        repo_owner = current_app.config.get('GITHUB_REPO_OWNER')
+        repo_name = current_app.config.get('GITHUB_REPO_NAME')
+        
+        if github_token and repo_owner and repo_name:
+            category = challenge.get('category', '')
+            name = challenge.get('name', '')
+            branch = challenge.get('branch', 'main')
+            
+            # Sanitize path components to prevent path traversal
+            # GitHub API doesn't allow '..' in paths, but we validate to be safe
+            if category and name and '..' not in category and '..' not in name:
+                headers = {
+                    'Authorization': f'token {github_token}',
+                    'Accept': 'application/vnd.github.v3.raw'
+                }
+                
+                yml_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{category}/{name}/challenge.yml?ref={branch}'
+                try:
+                    logger.info(f"Fetching challenge.yml from GitHub for challenge {challenge_id}")
+                    yml_response = requests.get(yml_url, headers=headers, timeout=10)
+                    if yml_response.status_code == 200:
+                        challenge_yml = yaml.safe_load(yml_response.text)
+                        logger.debug(f"Successfully loaded challenge.yml for challenge {challenge_id}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch challenge.yml: {str(e)}")
+            else:
+                logger.warning(f"Invalid category or name for challenge {challenge_id}, skipping challenge.yml fetch")
+        
+        # Prepare challenge data for CTFd
+        ctfd_challenge = {
+            'name': challenge.get('name'),
+            'category': challenge.get('category'),
+            'description': challenge.get('description', ''),
+            'value': challenge.get('points', 100),
+            'type': 'standard',
+            'state': 'hidden'
+        }
+        
+        # Add additional fields from challenge.yml if available
+        if challenge_yml:
+            # Add max_attempts if specified
+            if 'max_attempts' in challenge_yml:
+                ctfd_challenge['max_attempts'] = challenge_yml['max_attempts']
+            
+            # Add connection_info if specified
+            if 'connection_info' in challenge_yml:
+                ctfd_challenge['connection_info'] = challenge_yml['connection_info']
+            
+            # Add attribution if specified (prefer 'attribution', fallback to 'author')
+            if 'attribution' in challenge_yml or 'author' in challenge_yml:
+                ctfd_challenge['attribution'] = challenge_yml.get('attribution') or challenge_yml.get('author')
+            
+            # Add extra metadata if specified
+            if 'extra' in challenge_yml:
+                ctfd_challenge['extra'] = challenge_yml['extra']
+        
+        # Push challenge and flag using the client with transaction-like behavior
+        flag_content = challenge.get('flag')
+        
+        try:
+            result = ctfd_client.push_challenge_with_flag(
+                challenge_data=ctfd_challenge,
+                flag_content=flag_content,
+                flag_type='static'
+            )
+            
+            ctfd_id = result['challenge']['id']
+            
+            # Update challenge with CTFd ID
+            logger.info(f"Updating challenge {challenge_id} with CTFd ID {ctfd_id}")
+            supabase.table('challenges').update({
+                'ctfd_id': ctfd_id,
+                'pushed_to_ctfd': True
+            }).eq('id', challenge_id).execute()
+            
+            logger.info(f"Challenge {challenge_id} successfully pushed to CTFd with ID {ctfd_id}")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Challenge pushed to CTFd successfully',
+                'ctfd_id': ctfd_id,
+                'flag_created': result['flag'] is not None
+            })
+            
+        except CTFdAPIException as e:
+            logger.error(f"CTFd API error while pushing challenge {challenge_id}: {e.message}")
+            return jsonify(e.to_dict()), 400
+            
+    except Exception as e:
+        logger.exception(f"Unexpected error while pushing challenge {challenge_id} to CTFd")
+        return jsonify({
+            'error': 'An unexpected error occurred',
+            'details': str(e)
+        }), 500
 
 
 @challenges_bp.route('/challenges/<int:challenge_id>/assign-round', methods=['POST'])
