@@ -265,16 +265,20 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 CTFd Operation Logs
-                <button onclick="refreshCTFdLogs()" class="btn btn-sm btn-ghost ml-2" id="refreshLogsBtn">
+                <button onclick="loadCTFdLogs()" class="btn btn-sm btn-primary ml-2" id="loadLogsBtn">
+                    Load Logs
+                </button>
+                <button onclick="refreshCTFdLogs()" class="btn btn-sm btn-ghost hidden" id="refreshLogsBtn">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
+                    Refresh
                 </button>
             </h2>
             
             <div id="ctfdLogsContainer" class="mt-4">
-                <div class="flex justify-center py-4">
-                    <span class="loading loading-spinner loading-md"></span>
+                <div class="text-center text-base-content/50 py-4">
+                    Click "Load Logs" to view CTFd operation history for this team.
                 </div>
             </div>
         </div>
@@ -959,9 +963,17 @@ async function refreshCTFdLogs() {
         } else {
             container.innerHTML = '<div class="text-center text-base-content/50 py-4">No CTFd operation logs yet. Use the buttons above to generate passwords and create accounts in CTFd.</div>';
         }
+        
+        // Show refresh button and hide load button
+        document.getElementById('loadLogsBtn').classList.add('hidden');
+        document.getElementById('refreshLogsBtn').classList.remove('hidden');
     } catch (error) {
         container.innerHTML = '<div class="alert alert-error"><span>Error loading logs: ' + error.message + '</span></div>';
     }
+}
+
+function loadCTFdLogs() {
+    refreshCTFdLogs();
 }
 
 function formatOperationType(type) {
@@ -979,10 +991,5 @@ function escapeHtml(text) {
     div.textContent = text;
     return div.innerHTML;
 }
-
-// Load logs on page load
-document.addEventListener('DOMContentLoaded', () => {
-    refreshCTFdLogs();
-});
 </script>
 {% endblock %}
