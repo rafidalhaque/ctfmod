@@ -127,7 +127,7 @@ class CTFdAPIClient:
         # Check required fields
         missing_fields = []
         for field in self.REQUIRED_FIELDS:
-            if field not in challenge_data or not challenge_data[field]:
+            if field not in challenge_data or challenge_data[field] is None or challenge_data[field] == '':
                 missing_fields.append(field)
         
         if missing_fields:
