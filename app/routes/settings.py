@@ -64,6 +64,34 @@ def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
         return datetime_str
 
 
+def get_ctfd_config():
+    """Get CTFd configuration from database settings, with fallback to environment variables.
+    
+    Returns:
+        tuple: (ctfd_url, ctfd_api_key) where both are strings or empty strings if not found
+    """
+    supabase = get_supabase_client()
+    
+    # Default to environment variables
+    ctfd_url = current_app.config.get('CTFD_URL', '')
+    ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+    
+    # Try to get from database settings (overrides environment variables)
+    if supabase:
+        try:
+            settings_response = supabase.table('settings').select('key, value').in_('key', ['ctfd_url', 'ctfd_api_key']).execute()
+            if settings_response.data:
+                for setting in settings_response.data:
+                    if setting['key'] == 'ctfd_url' and setting['value']:
+                        ctfd_url = setting['value']
+                    elif setting['key'] == 'ctfd_api_key' and setting['value']:
+                        ctfd_api_key = setting['value']
+        except Exception as e:
+            logger.warning(f"Failed to fetch CTFd config from database: {str(e)}")
+    
+    return ctfd_url, ctfd_api_key
+
+
 @settings_bp.route('/settings')
 @login_required
 def index():
@@ -2587,9 +2615,8 @@ def create_ctfd_accounts(team_id):
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL', '')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         if not ctfd_url or not ctfd_api_key:
             return jsonify({'error': 'CTFd URL and API key not configured'}), 400
@@ -2903,9 +2930,8 @@ def bulk_create_ctfd_accounts():
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL', '')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         if not ctfd_url or not ctfd_api_key:
             return jsonify({'error': 'CTFd URL and API key not configured'}), 400

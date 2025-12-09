@@ -13,6 +13,34 @@ challenges_bp = Blueprint('challenges', __name__)
 logger = logging.getLogger(__name__)
 
 
+def get_ctfd_config():
+    """Get CTFd configuration from database settings, with fallback to environment variables.
+    
+    Returns:
+        tuple: (ctfd_url, ctfd_api_key) where both are strings or empty strings if not found
+    """
+    supabase = get_supabase_client()
+    
+    # Default to environment variables
+    ctfd_url = current_app.config.get('CTFD_URL', '')
+    ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+    
+    # Try to get from database settings (overrides environment variables)
+    if supabase:
+        try:
+            settings_response = supabase.table('settings').select('key, value').in_('key', ['ctfd_url', 'ctfd_api_key']).execute()
+            if settings_response.data:
+                for setting in settings_response.data:
+                    if setting['key'] == 'ctfd_url' and setting['value']:
+                        ctfd_url = setting['value']
+                    elif setting['key'] == 'ctfd_api_key' and setting['value']:
+                        ctfd_api_key = setting['value']
+        except Exception as e:
+            logger.warning(f"Failed to fetch CTFd config from database: {str(e)}")
+    
+    return ctfd_url, ctfd_api_key
+
+
 def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token, base_path=None):
     """
     Recursively fetch all files and folders in the challenge directory.
@@ -432,9 +460,8 @@ def push_to_ctfd(challenge_id):
             logger.warning(f"Challenge {challenge_id} not found")
             return jsonify({'error': 'Challenge not found'}), 404
         
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         # Initialize CTFd client (validates configuration)
         try:
