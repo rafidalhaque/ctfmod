@@ -134,3 +134,19 @@ CREATE TABLE public.teams (
   updated_at timestamp without time zone DEFAULT now(),
   CONSTRAINT teams_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.ctfd_operation_logs (
+  id integer NOT NULL DEFAULT nextval('ctfd_operation_logs_id_seq'::regclass),
+  team_id integer,
+  team_registration_id bigint,
+  member_id bigint,
+  operation_type character varying NOT NULL,
+  status character varying NOT NULL DEFAULT 'pending'::character varying CHECK (status::text = ANY (ARRAY['pending'::character varying, 'success'::character varying, 'failed'::character varying]::text[])),
+  request_data jsonb,
+  response_data jsonb,
+  error_message text,
+  ctfd_entity_id integer,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT ctfd_operation_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT ctfd_operation_logs_team_id_fkey FOREIGN KEY (team_id) REFERENCES public.teams(id),
+  CONSTRAINT ctfd_operation_logs_member_id_fkey FOREIGN KEY (member_id) REFERENCES public.team_members(id)
+);
