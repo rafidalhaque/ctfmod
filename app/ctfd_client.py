@@ -454,3 +454,269 @@ class CTFdAPIClient:
             
             # Re-raise the original exception
             raise
+    
+    def create_team(self, team_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a team on CTFd.
+        
+        Args:
+            team_data: Team data including name and password
+            
+        Returns:
+            Dictionary with created team data including 'id'
+            
+        Raises:
+            CTFdAPIException: If team creation fails
+        """
+        # Validate required fields
+        if not team_data.get('name'):
+            raise CTFdAPIException(
+                "Team name is required",
+                CTFdErrorType.VALIDATION_ERROR,
+                {'field': 'name'}
+            )
+        
+        if not team_data.get('password'):
+            raise CTFdAPIException(
+                "Team password is required",
+                CTFdErrorType.VALIDATION_ERROR,
+                {'field': 'password'}
+            )
+        
+        payload = {
+            'name': team_data['name'],
+            'password': team_data['password'],
+            'hidden': team_data.get('hidden', False),
+            'banned': team_data.get('banned', False)
+        }
+        
+        # Add optional fields
+        if team_data.get('email'):
+            payload['email'] = team_data['email']
+        if team_data.get('affiliation'):
+            payload['affiliation'] = team_data['affiliation']
+        if team_data.get('country'):
+            payload['country'] = team_data['country']
+        
+        logger.info(f"Creating team '{team_data['name']}' on CTFd")
+        
+        try:
+            url = f"{self.ctfd_url}/api/v1/teams"
+            response = requests.post(
+                url,
+                headers=self.headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            response_data = self._validate_response(response, "team creation")
+            
+            if 'data' not in response_data:
+                raise CTFdAPIException(
+                    "Response missing 'data' field",
+                    CTFdErrorType.RESPONSE_VALIDATION_ERROR,
+                    {'response': response_data}
+                )
+            
+            team_info = response_data['data']
+            team_id = team_info.get('id')
+            
+            if not team_id:
+                raise CTFdAPIException(
+                    "Response missing team 'id'",
+                    CTFdErrorType.RESPONSE_VALIDATION_ERROR,
+                    {'response': response_data}
+                )
+            
+            logger.info(f"Team '{team_data['name']}' created successfully with ID: {team_id}")
+            return team_info
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error during team creation: {str(e)}")
+            raise CTFdAPIException(
+                f"Network error: {str(e)}",
+                CTFdErrorType.NETWORK_ERROR,
+                {'operation': 'team creation', 'error': str(e)}
+            )
+    
+    def create_user(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a user on CTFd.
+        
+        Args:
+            user_data: User data including name, email, and password
+            
+        Returns:
+            Dictionary with created user data including 'id'
+            
+        Raises:
+            CTFdAPIException: If user creation fails
+        """
+        # Validate required fields
+        if not user_data.get('name'):
+            raise CTFdAPIException(
+                "User name is required",
+                CTFdErrorType.VALIDATION_ERROR,
+                {'field': 'name'}
+            )
+        
+        if not user_data.get('email'):
+            raise CTFdAPIException(
+                "User email is required",
+                CTFdErrorType.VALIDATION_ERROR,
+                {'field': 'email'}
+            )
+        
+        if not user_data.get('password'):
+            raise CTFdAPIException(
+                "User password is required",
+                CTFdErrorType.VALIDATION_ERROR,
+                {'field': 'password'}
+            )
+        
+        payload = {
+            'name': user_data['name'],
+            'email': user_data['email'],
+            'password': user_data['password'],
+            'type': user_data.get('type', 'user'),
+            'verified': user_data.get('verified', True),
+            'hidden': user_data.get('hidden', False),
+            'banned': user_data.get('banned', False)
+        }
+        
+        # Add optional fields
+        if user_data.get('affiliation'):
+            payload['affiliation'] = user_data['affiliation']
+        if user_data.get('country'):
+            payload['country'] = user_data['country']
+        
+        logger.info(f"Creating user '{user_data['email']}' on CTFd")
+        
+        try:
+            url = f"{self.ctfd_url}/api/v1/users"
+            response = requests.post(
+                url,
+                headers=self.headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            response_data = self._validate_response(response, "user creation")
+            
+            if 'data' not in response_data:
+                raise CTFdAPIException(
+                    "Response missing 'data' field",
+                    CTFdErrorType.RESPONSE_VALIDATION_ERROR,
+                    {'response': response_data}
+                )
+            
+            user_info = response_data['data']
+            user_id = user_info.get('id')
+            
+            if not user_id:
+                raise CTFdAPIException(
+                    "Response missing user 'id'",
+                    CTFdErrorType.RESPONSE_VALIDATION_ERROR,
+                    {'response': response_data}
+                )
+            
+            logger.info(f"User '{user_data['email']}' created successfully with ID: {user_id}")
+            return user_info
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error during user creation: {str(e)}")
+            raise CTFdAPIException(
+                f"Network error: {str(e)}",
+                CTFdErrorType.NETWORK_ERROR,
+                {'operation': 'user creation', 'error': str(e)}
+            )
+    
+    def add_user_to_team(self, team_id: int, user_id: int) -> Dict[str, Any]:
+        """
+        Add a user to a team on CTFd.
+        
+        Args:
+            team_id: ID of the team
+            user_id: ID of the user to add
+            
+        Returns:
+            Dictionary with operation result
+            
+        Raises:
+            CTFdAPIException: If adding user to team fails
+        """
+        logger.info(f"Adding user {user_id} to team {team_id} on CTFd")
+        
+        try:
+            url = f"{self.ctfd_url}/api/v1/teams/{team_id}/members"
+            payload = {'user_id': user_id}
+            
+            response = requests.post(
+                url,
+                headers=self.headers,
+                json=payload,
+                timeout=self.timeout
+            )
+            
+            response_data = self._validate_response(response, "add user to team")
+            
+            logger.info(f"User {user_id} added to team {team_id} successfully")
+            return response_data
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Network error during add user to team: {str(e)}")
+            raise CTFdAPIException(
+                f"Network error: {str(e)}",
+                CTFdErrorType.NETWORK_ERROR,
+                {'operation': 'add user to team', 'error': str(e)}
+            )
+    
+    def delete_team(self, team_id: int) -> None:
+        """
+        Delete a team from CTFd.
+        
+        Args:
+            team_id: ID of the team to delete
+        """
+        logger.info(f"Deleting team ID {team_id} from CTFd")
+        
+        try:
+            url = f"{self.ctfd_url}/api/v1/teams/{team_id}"
+            response = requests.delete(
+                url,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"Team {team_id} deleted successfully")
+            else:
+                logger.warning(f"Failed to delete team {team_id}: {response.status_code}")
+                
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Network error during team deletion: {str(e)}")
+    
+    def delete_user(self, user_id: int) -> None:
+        """
+        Delete a user from CTFd.
+        
+        Args:
+            user_id: ID of the user to delete
+        """
+        logger.info(f"Deleting user ID {user_id} from CTFd")
+        
+        try:
+            url = f"{self.ctfd_url}/api/v1/users/{user_id}"
+            response = requests.delete(
+                url,
+                headers=self.headers,
+                timeout=self.timeout
+            )
+            
+            if response.status_code in [200, 204]:
+                logger.info(f"User {user_id} deleted successfully")
+            else:
+                logger.warning(f"Failed to delete user {user_id}: {response.status_code}")
+                
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Network error during user deletion: {str(e)}")

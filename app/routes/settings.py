@@ -2485,3 +2485,317 @@ def check_duplicates():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def generate_password(length=12):
+    """Generate a random password with alphanumeric characters."""
+    import string
+    import random
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choice(chars) for _ in range(length))
+
+
+@settings_bp.route('/settings/teams/<int:team_id>/generate-passwords', methods=['POST'])
+@login_required
+def generate_team_passwords(team_id):
+    """Generate passwords for team and all its members in bulk (plain text, stored in DB)."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Fetch team
+        team_response = supabase.table('teams').select('*').eq('id', team_id).execute()
+        if not team_response.data:
+            return jsonify({'error': 'Team not found'}), 404
+        
+        team = team_response.data[0]
+        registration_id = team.get('registration_id')
+        
+        if not registration_id:
+            return jsonify({'error': 'Team has no registration ID'}), 400
+        
+        # Generate team password
+        team_password = generate_password()
+        
+        # Check if team credentials already exist
+        existing_creds = supabase.table('ctfd_team_credentials').select('id').eq('team_id', registration_id).execute()
+        
+        if existing_creds.data:
+            # Update existing credentials
+            supabase.table('ctfd_team_credentials').update({
+                'ctfd_team_password': team_password
+            }).eq('team_id', registration_id).execute()
+        else:
+            # Create new credentials
+            supabase.table('ctfd_team_credentials').insert({
+                'team_id': registration_id,
+                'ctfd_team_password': team_password
+            }).execute()
+        
+        # Fetch team members
+        members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).execute()
+        members = members_response.data if members_response.data else []
+        
+        member_passwords = []
+        for member in members:
+            member_password = generate_password()
+            
+            # Check if user credentials already exist
+            existing_user_creds = supabase.table('ctfd_user_credentials').select('id').eq('member_id', member['id']).execute()
+            
+            if existing_user_creds.data:
+                # Update existing credentials
+                supabase.table('ctfd_user_credentials').update({
+                    'ctfd_password': member_password
+                }).eq('member_id', member['id']).execute()
+            else:
+                # Create new credentials
+                supabase.table('ctfd_user_credentials').insert({
+                    'member_id': member['id'],
+                    'ctfd_password': member_password
+                }).execute()
+            
+            member_passwords.append({
+                'member_id': member['id'],
+                'name': member.get('name'),
+                'email': member.get('email'),
+                'password': member_password
+            })
+        
+        return jsonify({
+            'success': True,
+            'message': f'Generated passwords for team and {len(members)} members',
+            'team_password': team_password,
+            'member_passwords': member_passwords
+        })
+        
+    except Exception as e:
+        logger.error(f"Error generating passwords: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/<int:team_id>/create-ctfd-accounts', methods=['POST'])
+@login_required
+def create_ctfd_accounts(team_id):
+    """Create team and user accounts in CTFd for a specific team."""
+    from flask import current_app
+    from app.ctfd_client import CTFdAPIClient, CTFdAPIException
+    
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Get CTFd configuration
+        ctfd_url = current_app.config.get('CTFD_URL', '')
+        ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+        
+        if not ctfd_url or not ctfd_api_key:
+            return jsonify({'error': 'CTFd URL and API key not configured'}), 400
+        
+        # Initialize CTFd client
+        client = CTFdAPIClient(ctfd_url, ctfd_api_key)
+        
+        # Fetch team
+        team_response = supabase.table('teams').select('*').eq('id', team_id).execute()
+        if not team_response.data:
+            return jsonify({'error': 'Team not found'}), 404
+        
+        team = team_response.data[0]
+        registration_id = team.get('registration_id')
+        team_name = team.get('team_name')
+        
+        if not registration_id:
+            return jsonify({'error': 'Team has no registration ID'}), 400
+        
+        # Fetch team credentials
+        team_creds_response = supabase.table('ctfd_team_credentials').select('*').eq('team_id', registration_id).execute()
+        if not team_creds_response.data:
+            return jsonify({'error': 'Team credentials not found. Please generate passwords first.'}), 400
+        
+        team_creds = team_creds_response.data[0]
+        team_password = team_creds.get('ctfd_team_password')
+        
+        if not team_password:
+            return jsonify({'error': 'Team password not found. Please generate passwords first.'}), 400
+        
+        # Check if team already has CTFd ID (already created)
+        if team_creds.get('ctfd_team_id'):
+            return jsonify({
+                'error': 'Team already exists in CTFd',
+                'ctfd_team_id': team_creds['ctfd_team_id']
+            }), 400
+        
+        # Fetch team members
+        members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).execute()
+        members = members_response.data if members_response.data else []
+        
+        logs = []
+        ctfd_team_id = None
+        created_user_ids = []
+        
+        try:
+            # Step 1: Create team in CTFd
+            log_entry = {
+                'team_id': team_id,
+                'team_registration_id': registration_id,
+                'operation_type': 'create_team',
+                'status': 'pending',
+                'request_data': {'team_name': team_name}
+            }
+            
+            try:
+                team_result = client.create_team({
+                    'name': team_name,
+                    'password': team_password
+                })
+                ctfd_team_id = team_result.get('id')
+                
+                log_entry['status'] = 'success'
+                log_entry['response_data'] = team_result
+                log_entry['ctfd_entity_id'] = ctfd_team_id
+                
+                # Update team credentials with CTFd team ID
+                supabase.table('ctfd_team_credentials').update({
+                    'ctfd_team_id': ctfd_team_id
+                }).eq('team_id', registration_id).execute()
+                
+            except CTFdAPIException as e:
+                log_entry['status'] = 'failed'
+                log_entry['error_message'] = e.message
+                log_entry['response_data'] = e.details
+                logs.append(log_entry)
+                supabase.table('ctfd_operation_logs').insert(log_entry).execute()
+                return jsonify({
+                    'success': False,
+                    'error': f'Failed to create team: {e.message}',
+                    'logs': logs
+                }), 500
+            
+            logs.append(log_entry)
+            supabase.table('ctfd_operation_logs').insert(log_entry).execute()
+            
+            # Step 2: Create users in CTFd
+            for member in members:
+                # Fetch user credentials
+                user_creds_response = supabase.table('ctfd_user_credentials').select('*').eq('member_id', member['id']).execute()
+                if not user_creds_response.data:
+                    continue
+                
+                user_creds = user_creds_response.data[0]
+                user_password = user_creds.get('ctfd_password')
+                
+                if not user_password or not member.get('email'):
+                    continue
+                
+                # Skip if user already has CTFd ID
+                if user_creds.get('ctfd_user_id'):
+                    continue
+                
+                user_log_entry = {
+                    'team_id': team_id,
+                    'team_registration_id': registration_id,
+                    'member_id': member['id'],
+                    'operation_type': 'create_user',
+                    'status': 'pending',
+                    'request_data': {'email': member['email'], 'name': member.get('name', member['email'])}
+                }
+                
+                try:
+                    user_result = client.create_user({
+                        'name': member.get('name', member['email']),
+                        'email': member['email'],
+                        'password': user_password,
+                        'verified': True
+                    })
+                    ctfd_user_id = user_result.get('id')
+                    created_user_ids.append(ctfd_user_id)
+                    
+                    user_log_entry['status'] = 'success'
+                    user_log_entry['response_data'] = user_result
+                    user_log_entry['ctfd_entity_id'] = ctfd_user_id
+                    
+                    # Update user credentials with CTFd user ID
+                    supabase.table('ctfd_user_credentials').update({
+                        'ctfd_user_id': ctfd_user_id
+                    }).eq('member_id', member['id']).execute()
+                    
+                except CTFdAPIException as e:
+                    user_log_entry['status'] = 'failed'
+                    user_log_entry['error_message'] = e.message
+                    user_log_entry['response_data'] = e.details
+                
+                logs.append(user_log_entry)
+                supabase.table('ctfd_operation_logs').insert(user_log_entry).execute()
+            
+            # Step 3: Add users to team
+            for user_id in created_user_ids:
+                add_log_entry = {
+                    'team_id': team_id,
+                    'team_registration_id': registration_id,
+                    'operation_type': 'add_user_to_team',
+                    'status': 'pending',
+                    'request_data': {'ctfd_team_id': ctfd_team_id, 'ctfd_user_id': user_id}
+                }
+                
+                try:
+                    client.add_user_to_team(ctfd_team_id, user_id)
+                    add_log_entry['status'] = 'success'
+                    add_log_entry['ctfd_entity_id'] = user_id
+                except CTFdAPIException as e:
+                    add_log_entry['status'] = 'failed'
+                    add_log_entry['error_message'] = e.message
+                    add_log_entry['response_data'] = e.details
+                
+                logs.append(add_log_entry)
+                supabase.table('ctfd_operation_logs').insert(add_log_entry).execute()
+            
+            # Count successes and failures
+            success_count = sum(1 for log in logs if log['status'] == 'success')
+            failed_count = sum(1 for log in logs if log['status'] == 'failed')
+            
+            return jsonify({
+                'success': True,
+                'message': f'CTFd accounts created. {success_count} operations succeeded, {failed_count} failed.',
+                'ctfd_team_id': ctfd_team_id,
+                'logs': logs
+            })
+            
+        except Exception as e:
+            logger.error(f"Error creating CTFd accounts: {str(e)}")
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'logs': logs
+            }), 500
+        
+    except Exception as e:
+        logger.error(f"Error creating CTFd accounts: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/teams/<int:team_id>/ctfd-logs', methods=['GET'])
+@login_required
+def get_team_ctfd_logs(team_id):
+    """Get CTFd operation logs for a specific team."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Fetch logs for this team
+        logs_response = supabase.table('ctfd_operation_logs').select('*').eq('team_id', team_id).order('created_at', desc=True).execute()
+        logs = logs_response.data if logs_response.data else []
+        
+        return jsonify({
+            'success': True,
+            'logs': logs
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching CTFd logs: {str(e)}")
+        return jsonify({'error': str(e)}), 500
