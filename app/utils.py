@@ -3,6 +3,7 @@ Common utility functions for the CTF Manager application.
 """
 import logging
 from flask import current_app
+from app.supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,6 @@ def get_ctfd_config():
     Returns:
         tuple: (ctfd_url, ctfd_api_key) where both are strings or empty strings if not found
     """
-    from app.supabase_client import get_supabase_client
     
     supabase = get_supabase_client()
     
