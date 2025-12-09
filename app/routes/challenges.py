@@ -454,20 +454,25 @@ def push_to_ctfd(challenge_id):
             name = challenge.get('name', '')
             branch = challenge.get('branch', 'main')
             
-            headers = {
-                'Authorization': f'token {github_token}',
-                'Accept': 'application/vnd.github.v3.raw'
-            }
-            
-            yml_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{category}/{name}/challenge.yml?ref={branch}'
-            try:
-                logger.info(f"Fetching challenge.yml from GitHub for challenge {challenge_id}")
-                yml_response = requests.get(yml_url, headers=headers, timeout=10)
-                if yml_response.status_code == 200:
-                    challenge_yml = yaml.safe_load(yml_response.text)
-                    logger.debug(f"Successfully loaded challenge.yml for challenge {challenge_id}")
-            except Exception as e:
-                logger.warning(f"Could not fetch challenge.yml: {str(e)}")
+            # Sanitize path components to prevent path traversal
+            # GitHub API doesn't allow '..' in paths, but we validate to be safe
+            if category and name and '..' not in category and '..' not in name:
+                headers = {
+                    'Authorization': f'token {github_token}',
+                    'Accept': 'application/vnd.github.v3.raw'
+                }
+                
+                yml_url = f'https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{category}/{name}/challenge.yml?ref={branch}'
+                try:
+                    logger.info(f"Fetching challenge.yml from GitHub for challenge {challenge_id}")
+                    yml_response = requests.get(yml_url, headers=headers, timeout=10)
+                    if yml_response.status_code == 200:
+                        challenge_yml = yaml.safe_load(yml_response.text)
+                        logger.debug(f"Successfully loaded challenge.yml for challenge {challenge_id}")
+                except Exception as e:
+                    logger.warning(f"Could not fetch challenge.yml: {str(e)}")
+            else:
+                logger.warning(f"Invalid category or name for challenge {challenge_id}, skipping challenge.yml fetch")
         
         # Prepare challenge data for CTFd
         ctfd_challenge = {
@@ -489,9 +494,9 @@ def push_to_ctfd(challenge_id):
             if 'connection_info' in challenge_yml:
                 ctfd_challenge['connection_info'] = challenge_yml['connection_info']
             
-            # Add attribution if specified
+            # Add attribution if specified (prefer 'attribution', fallback to 'author')
             if 'attribution' in challenge_yml or 'author' in challenge_yml:
-                ctfd_challenge['attribution'] = challenge_yml.get('attribution', challenge_yml.get('author'))
+                ctfd_challenge['attribution'] = challenge_yml.get('attribution') or challenge_yml.get('author')
             
             # Add extra metadata if specified
             if 'extra' in challenge_yml:

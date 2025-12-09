@@ -154,11 +154,12 @@ class CTFdAPIClient:
             )
         
         # Validate max_attempts if provided
+        # Note: 0 means unlimited attempts in CTFd
         if 'max_attempts' in challenge_data and challenge_data['max_attempts'] is not None:
             try:
                 max_attempts = int(challenge_data['max_attempts'])
                 if max_attempts < 0:
-                    raise ValueError("max_attempts must be non-negative")
+                    raise ValueError("max_attempts must be non-negative (0 = unlimited)")
             except (ValueError, TypeError) as e:
                 raise CTFdAPIException(
                     f"Invalid max_attempts value: {str(e)}",
@@ -198,10 +199,11 @@ class CTFdAPIClient:
             response_data = response.json()
         except ValueError as e:
             logger.error(f"Failed to parse JSON response for {operation}: {str(e)}")
+            # Don't log full response text as it may contain sensitive data
             raise CTFdAPIException(
                 f"Invalid JSON response from CTFd for {operation}",
                 CTFdErrorType.RESPONSE_VALIDATION_ERROR,
-                {'status_code': response.status_code, 'response_text': response.text[:500]}
+                {'status_code': response.status_code}
             )
         
         # CTFd typically returns success=True for successful operations
@@ -379,11 +381,20 @@ class CTFdAPIClient:
                 timeout=self.timeout
             )
             
-            # For delete operations, we just check status code
-            if response.status_code not in [200, 204]:
-                logger.warning(f"Failed to delete challenge {challenge_id} during rollback: {response.status_code}")
+            # Check both status code and response body for delete operations
+            if response.status_code in [200, 204]:
+                # Try to parse response to check for success field
+                try:
+                    response_data = response.json()
+                    if 'success' in response_data and not response_data.get('success'):
+                        logger.warning(f"Challenge deletion reported failure in response body: {response_data.get('message', 'Unknown error')}")
+                    else:
+                        logger.info(f"Challenge {challenge_id} deleted successfully")
+                except ValueError:
+                    # 204 No Content won't have a body
+                    logger.info(f"Challenge {challenge_id} deleted successfully")
             else:
-                logger.info(f"Challenge {challenge_id} deleted successfully")
+                logger.warning(f"Failed to delete challenge {challenge_id} during rollback: {response.status_code}")
                 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Network error during challenge deletion (rollback): {str(e)}")
