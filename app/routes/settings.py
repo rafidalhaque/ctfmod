@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.ctfd_client import CTFdAPIClient, CTFdAPIException
+from app.utils import get_ctfd_config
 import secrets
 import os
 import uuid
@@ -2587,9 +2588,8 @@ def create_ctfd_accounts(team_id):
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL', '')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         if not ctfd_url or not ctfd_api_key:
             return jsonify({'error': 'CTFd URL and API key not configured'}), 400
@@ -2903,9 +2903,8 @@ def bulk_create_ctfd_accounts():
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL', '')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY', '')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         if not ctfd_url or not ctfd_api_key:
             return jsonify({'error': 'CTFd URL and API key not configured'}), 400

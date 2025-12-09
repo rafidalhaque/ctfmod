@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, flash, redirect,
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.ctfd_client import CTFdAPIClient, CTFdAPIException
+from app.utils import get_ctfd_config
 import requests
 import yaml
 import os
@@ -432,9 +433,8 @@ def push_to_ctfd(challenge_id):
             logger.warning(f"Challenge {challenge_id} not found")
             return jsonify({'error': 'Challenge not found'}), 404
         
-        # Get CTFd configuration
-        ctfd_url = current_app.config.get('CTFD_URL')
-        ctfd_api_key = current_app.config.get('CTFD_API_KEY')
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
         
         # Initialize CTFd client (validates configuration)
         try:
