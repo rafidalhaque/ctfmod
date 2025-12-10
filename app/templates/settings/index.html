@@ -145,7 +145,15 @@
         <!-- CTFd Settings -->
         <div class="card bg-base-100 shadow-xl">
             <div class="card-body">
-                <h2 class="card-title">CTFd Integration</h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="card-title">CTFd Integration</h2>
+                    <a href="{{ url_for('settings.ctfd_logs') }}" class="btn btn-ghost btn-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        View Logs
+                    </a>
+                </div>
                 <form id="ctfdSettingsForm" class="space-y-4">
                     <div class="form-control">
                         <label class="label">
@@ -167,8 +175,19 @@
                                class="input input-bordered w-full" />
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">Save CTFd Settings</button>
+                    <div class="flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save CTFd Settings</button>
+                        <button type="button" onclick="testCTFdConnection(event)" class="btn btn-outline btn-info">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Test Connection
+                        </button>
+                    </div>
                 </form>
+                
+                <!-- Test Results Alert -->
+                <div id="ctfdTestResult" class="hidden mt-4"></div>
             </div>
         </div>
 
@@ -993,6 +1012,87 @@ document.getElementById('ctfdSettingsForm').addEventListener('submit', async (e)
     e.preventDefault();
     await saveSettings(new FormData(e.target));
 });
+
+// Helper function to format test results
+function formatTestResults(results) {
+    if (!results) return '';
+    
+    let html = '<div class="mt-2 space-y-1 text-xs">';
+    for (const [key, value] of Object.entries(results)) {
+        const statusBadge = value.status === 'success' 
+            ? '<span class="badge badge-success badge-xs">✓</span>' 
+            : value.status === 'failed' 
+            ? '<span class="badge badge-error badge-xs">✗</span>'
+            : '<span class="badge badge-warning badge-xs">•</span>';
+        html += '<div>' + statusBadge + ' <strong>' + key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + ':</strong> ' + value.message + '</div>';
+    }
+    html += '</div>';
+    return html;
+}
+
+// Test CTFd Connection
+async function testCTFdConnection(event) {
+    const testResultDiv = document.getElementById('ctfdTestResult');
+    const testButton = event.target;
+    
+    // Disable button and show loading state
+    testButton.disabled = true;
+    testButton.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Testing...';
+    
+    // Show loading message
+    testResultDiv.className = 'alert';
+    testResultDiv.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Testing CTFd API connection...';
+    testResultDiv.classList.remove('hidden');
+    
+    try {
+        const response = await fetch('/settings/ctfd/test', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Success
+            testResultDiv.className = 'alert alert-success';
+            let html = '<div>';
+            html += '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+            html += '<div>';
+            html += '<h3 class="font-bold">CTFd Connection Successful!</h3>';
+            html += '<div class="text-sm">' + result.message + '</div>';
+            html += formatTestResults(result.results);
+            html += '<div class="mt-2"><a href="/settings/ctfd-logs" class="link link-primary text-sm">View detailed logs →</a></div>';
+            html += '</div></div>';
+            testResultDiv.innerHTML = html;
+        } else {
+            // Error
+            testResultDiv.className = 'alert alert-error';
+            let html = '<div>';
+            html += '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+            html += '<div>';
+            html += '<h3 class="font-bold">CTFd Connection Failed</h3>';
+            html += '<div class="text-sm">' + (result.error || 'Unknown error occurred') + '</div>';
+            html += formatTestResults(result.results);
+            if (result.details && Object.keys(result.details).length > 0) {
+                html += '<details class="mt-2"><summary class="cursor-pointer text-xs">Technical Details</summary>';
+                html += '<pre class="text-xs mt-2 p-2 bg-base-300 rounded overflow-x-auto">' + JSON.stringify(result.details, null, 2) + '</pre>';
+                html += '</details>';
+            }
+            html += '<div class="mt-2"><a href="/settings/ctfd-logs" class="link link-primary text-sm">View detailed logs →</a></div>';
+            html += '</div></div>';
+            testResultDiv.innerHTML = html;
+        }
+    } catch (error) {
+        testResultDiv.className = 'alert alert-error';
+        testResultDiv.innerHTML = '<div><svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg><div><h3 class="font-bold">Request Failed</h3><div class="text-sm">Failed to connect to server: ' + error.message + '</div></div></div>';
+    } finally {
+        // Re-enable button
+        testButton.disabled = false;
+        testButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> Test Connection';
+    }
+}
 
 // Categories Form
 document.getElementById('categoriesForm').addEventListener('submit', async (e) => {

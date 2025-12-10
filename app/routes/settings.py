@@ -462,6 +462,129 @@ def users_list():
     return render_template('settings/users.html', users=users)
 
 
+@settings_bp.route('/settings/ctfd/test', methods=['POST'])
+@login_required
+def test_ctfd_settings():
+    """Test CTFd API connection and functionality."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    # Length of random ID suffix for test challenge name
+    TEST_CHALLENGE_ID_LENGTH = 8
+    
+    try:
+        # Get CTFd configuration from database settings
+        ctfd_url, ctfd_api_key = get_ctfd_config()
+        
+        if not ctfd_url or not ctfd_api_key:
+            return jsonify({'error': 'CTFd URL and API key are required'}), 400
+        
+        # Initialize CTFd client
+        try:
+            client = CTFdAPIClient(ctfd_url, ctfd_api_key)
+        except CTFdAPIException as e:
+            logger.error(f"CTFd client initialization failed: {e.message}")
+            log_entry = {
+                'operation_type': 'test_connection',
+                'status': 'failed',
+                'error_message': f'Configuration error: {e.message}',
+                'request_data': {'ctfd_url': ctfd_url},
+                'response_data': e.details
+            }
+            supabase.table('ctfd_operation_logs').insert(log_entry).execute()
+            return jsonify({'error': e.message, 'details': e.details}), 400
+        
+        # Test 1: Create a test challenge
+        test_challenge_data = {
+            'name': f'_TEST_CHALLENGE_{uuid.uuid4().hex[:TEST_CHALLENGE_ID_LENGTH]}',
+            'category': 'Test',
+            'description': 'This is a temporary test challenge to verify CTFd API connectivity. It will be deleted automatically.',
+            'value': 100,
+            'type': 'standard',
+            'state': 'hidden'
+        }
+        
+        challenge_id = None
+        test_results = {
+            'connection': {'status': 'pending', 'message': ''},
+            'create_challenge': {'status': 'pending', 'message': ''},
+            'cleanup': {'status': 'pending', 'message': ''}
+        }
+        
+        log_entry = {
+            'operation_type': 'test_connection',
+            'status': 'pending',
+            'request_data': {'ctfd_url': ctfd_url, 'test_challenge': test_challenge_data['name']}
+        }
+        
+        try:
+            # Step 1: Test connection by creating a challenge
+            logger.info("Testing CTFd connection by creating test challenge")
+            challenge_result = client.create_challenge(test_challenge_data)
+            challenge_id = challenge_result.get('id')
+            
+            test_results['connection']['status'] = 'success'
+            test_results['connection']['message'] = 'Successfully connected to CTFd API'
+            
+            test_results['create_challenge']['status'] = 'success'
+            test_results['create_challenge']['message'] = f'Test challenge created with ID: {challenge_id}'
+            test_results['create_challenge']['challenge_id'] = challenge_id
+            
+            log_entry['ctfd_entity_id'] = challenge_id
+            log_entry['response_data'] = challenge_result
+            
+            # Step 2: Clean up - delete the test challenge
+            logger.info(f"Cleaning up test challenge {challenge_id}")
+            client.delete_challenge(challenge_id)
+            
+            test_results['cleanup']['status'] = 'success'
+            test_results['cleanup']['message'] = 'Test challenge deleted successfully'
+            
+            log_entry['status'] = 'success'
+            log_entry['error_message'] = None
+            
+            supabase.table('ctfd_operation_logs').insert(log_entry).execute()
+            
+            return jsonify({
+                'success': True,
+                'message': 'CTFd API connection test successful! All operations completed.',
+                'results': test_results,
+                'ctfd_url': ctfd_url
+            })
+            
+        except CTFdAPIException as e:
+            logger.error(f"CTFd API test failed: {e.message}")
+            
+            # Update test results with error
+            if not challenge_id:
+                test_results['connection']['status'] = 'failed'
+                test_results['connection']['message'] = f'Connection failed: {e.message}'
+                test_results['create_challenge']['status'] = 'failed'
+                test_results['create_challenge']['message'] = e.message
+            else:
+                test_results['cleanup']['status'] = 'failed'
+                test_results['cleanup']['message'] = f'Cleanup failed: {e.message}'
+            
+            log_entry['status'] = 'failed'
+            log_entry['error_message'] = e.message
+            log_entry['response_data'] = e.details
+            
+            supabase.table('ctfd_operation_logs').insert(log_entry).execute()
+            
+            return jsonify({
+                'error': e.message,
+                'error_type': e.error_type.value,
+                'results': test_results,
+                'details': e.details
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"CTFd test error: {str(e)}")
+        return jsonify({'error': f'Test failed: {str(e)}'}), 500
+
+
 @settings_bp.route('/settings/smtp', methods=['POST'])
 @login_required
 def update_smtp_settings():
@@ -2890,6 +3013,114 @@ def bulk_generate_passwords():
         
     except Exception as e:
         logger.error(f"Error in bulk password generation: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/settings/ctfd-logs')
+@login_required
+def ctfd_logs():
+    """View CTFd operation logs page with pagination and filtering."""
+    supabase = get_supabase_client()
+    logs = []
+    total_count = 0
+    status_counts = {'pending': 0, 'success': 0, 'failed': 0}
+    operation_types = []
+    
+    # Pagination and filter parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    status_filter = request.args.get('status', '', type=str).strip()
+    operation_filter = request.args.get('operation', '', type=str).strip()
+    team_id = request.args.get('team_id', type=int)
+    
+    # Ensure valid values
+    page = max(1, page)
+    per_page = min(max(10, per_page), 100)  # Between 10 and 100
+    
+    if supabase:
+        try:
+            # Get status counts
+            for status in ['pending', 'success', 'failed']:
+                count_response = supabase.table('ctfd_operation_logs').select('id', count='exact').eq('status', status).execute()
+                if hasattr(count_response, 'count') and count_response.count is not None:
+                    status_counts[status] = count_response.count
+                elif count_response.data:
+                    status_counts[status] = len(count_response.data)
+            
+            # Get unique operation types for filter dropdown
+            operations_response = supabase.table('ctfd_operation_logs').select('operation_type').execute()
+            if operations_response.data:
+                operation_types = sorted(list(set([log['operation_type'] for log in operations_response.data if log.get('operation_type')])))
+            
+            # Build base query
+            query = supabase.table('ctfd_operation_logs').select('*', count='exact')
+            
+            # Apply filters
+            if status_filter:
+                query = query.eq('status', status_filter)
+            if operation_filter:
+                query = query.eq('operation_type', operation_filter)
+            if team_id:
+                query = query.eq('team_id', team_id)
+            
+            # Get total count first
+            count_response = query.execute()
+            total_count = count_response.count if hasattr(count_response, 'count') and count_response.count else len(count_response.data) if count_response.data else 0
+            
+            # Apply pagination
+            offset = (page - 1) * per_page
+            logs_response = query.order('created_at', desc=True).range(offset, offset + per_page - 1).execute()
+            logs = logs_response.data if logs_response.data else []
+            
+            # Fetch team names for logs that have team_id
+            team_ids = [log['team_id'] for log in logs if log.get('team_id')]
+            teams_map = {}
+            if team_ids:
+                teams_response = supabase.table('teams').select('id, team_name').in_('id', team_ids).execute()
+                if teams_response.data:
+                    teams_map = {team['id']: team['team_name'] for team in teams_response.data}
+            
+            # Attach team names to logs
+            for log in logs:
+                if log.get('team_id'):
+                    log['team_name'] = teams_map.get(log['team_id'], 'Unknown Team')
+                    
+        except Exception as e:
+            flash(f'Error fetching CTFd operation logs: {str(e)}', 'error')
+    
+    # Calculate pagination info and total operations
+    total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    total_operations = status_counts.get('pending', 0) + status_counts.get('success', 0) + status_counts.get('failed', 0)
+    
+    return render_template('settings/ctfd_logs.html', 
+                          logs=logs,
+                          page=page,
+                          per_page=per_page,
+                          total_count=total_count,
+                          total_pages=total_pages,
+                          status_filter=status_filter,
+                          operation_filter=operation_filter,
+                          team_id=team_id,
+                          status_counts=status_counts,
+                          operation_types=operation_types,
+                          total_operations=total_operations)
+
+
+@settings_bp.route('/settings/ctfd-logs/clear', methods=['POST'])
+@login_required
+def clear_ctfd_logs():
+    """Clear all CTFd operation logs."""
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Delete all records by matching any id > 0 (all valid records have positive IDs)
+        # This is a common pattern in Supabase/PostgREST to delete all records without truncating
+        supabase.table('ctfd_operation_logs').delete().gt('id', 0).execute()
+        return jsonify({'success': True, 'message': 'All CTFd operation logs cleared'})
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
