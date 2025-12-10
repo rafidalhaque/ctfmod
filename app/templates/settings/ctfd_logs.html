@@ -1,0 +1,353 @@
+{% extends "base.html" %}
+
+{% block title %}CTFd Operation Logs - CTF Manager{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+            <h1 class="text-3xl font-bold">CTFd Operation Logs</h1>
+            <p class="text-base-content/70">Track CTFd API operations with detailed request and response data</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button onclick="clearAllLogs()" class="btn btn-error btn-sm btn-outline">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Clear All Logs
+            </button>
+            <a href="{{ url_for('settings.index') }}" class="btn btn-ghost btn-sm">
+                ← Back to Settings
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Summary -->
+    <div class="stats shadow w-full">
+        <div class="stat">
+            <div class="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            </div>
+            <div class="stat-title">Total Operations</div>
+            <div class="stat-value text-primary">{{ status_counts.get('pending', 0) + status_counts.get('success', 0) + status_counts.get('failed', 0) }}</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-success">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Successful</div>
+            <div class="stat-value text-success">{{ status_counts.get('success', 0) }}</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-error">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Failed</div>
+            <div class="stat-value text-error">{{ status_counts.get('failed', 0) }}</div>
+        </div>
+        
+        <div class="stat">
+            <div class="stat-figure text-warning">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <div class="stat-title">Pending</div>
+            <div class="stat-value text-warning">{{ status_counts.get('pending', 0) }}</div>
+        </div>
+    </div>
+
+    <!-- Filter Controls -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body py-4">
+            <form method="get" class="flex flex-wrap gap-4 items-end">
+                <div class="form-control">
+                    <label class="label py-0">
+                        <span class="label-text">Status</span>
+                    </label>
+                    <select name="status" class="select select-bordered select-sm">
+                        <option value="">All</option>
+                        <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Success</option>
+                        <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>Failed</option>
+                        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending</option>
+                    </select>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label py-0">
+                        <span class="label-text">Operation Type</span>
+                    </label>
+                    <select name="operation" class="select select-bordered select-sm">
+                        <option value="">All Operations</option>
+                        {% for op_type in operation_types %}
+                        <option value="{{ op_type }}" {% if operation_filter == op_type %}selected{% endif %}>{{ op_type.replace('_', ' ').title() }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-control flex-1">
+                    <label class="label py-0">
+                        <span class="label-text">Search current page</span>
+                    </label>
+                    <input type="text" id="searchInput" placeholder="Search by team, operation, error..." 
+                           class="input input-bordered input-sm w-full max-w-xs" onkeyup="filterLogs()" />
+                </div>
+                
+                <div class="flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-sm">Apply Filter</button>
+                    {% if status_filter or operation_filter or team_id %}
+                    <a href="{{ url_for('settings.ctfd_logs') }}" class="btn btn-ghost btn-sm">Clear</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Logs Table -->
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-lg mb-4">Operation History</h2>
+            
+            {% if logs %}
+            <div class="overflow-x-auto">
+                <table class="table table-sm" id="logsTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Operation</th>
+                            <th>Team</th>
+                            <th>CTFd Entity ID</th>
+                            <th>Timestamp</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>
+                                {% if log.status == 'success' %}
+                                <span class="badge badge-success badge-sm">Success</span>
+                                {% elif log.status == 'failed' %}
+                                <span class="badge badge-error badge-sm">Failed</span>
+                                {% else %}
+                                <span class="badge badge-warning badge-sm">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="font-medium">{{ log.operation_type.replace('_', ' ').title() }}</span>
+                            </td>
+                            <td>
+                                {% if log.team_name %}
+                                <a href="{{ url_for('settings.team_detail', team_id=log.team_id) }}" class="link link-primary">
+                                    {{ log.team_name }}
+                                </a>
+                                {% else %}
+                                <span class="text-base-content/50">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if log.ctfd_entity_id %}
+                                <span class="badge badge-ghost badge-sm">{{ log.ctfd_entity_id }}</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="text-sm">{{ log.created_at[:19] if log.created_at else 'N/A' }}</span>
+                            </td>
+                            <td>
+                                <button onclick="showLogDetails({{ log.id }})" class="btn btn-ghost btn-xs">
+                                    View Details
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="flex justify-center mt-6">
+                <div class="join">
+                    {% if page > 1 %}
+                    <a href="?page=1{% if status_filter %}&status={{ status_filter }}{% endif %}{% if operation_filter %}&operation={{ operation_filter }}{% endif %}{% if team_id %}&team_id={{ team_id }}{% endif %}" 
+                       class="join-item btn btn-sm">«</a>
+                    <a href="?page={{ page - 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if operation_filter %}&operation={{ operation_filter }}{% endif %}{% if team_id %}&team_id={{ team_id }}{% endif %}" 
+                       class="join-item btn btn-sm">‹</a>
+                    {% endif %}
+                    
+                    {% set start_page = [1, page - 2]|max %}
+                    {% set end_page = [total_pages, page + 2]|min %}
+                    
+                    {% for p in range(start_page, end_page + 1) %}
+                    <a href="?page={{ p }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if operation_filter %}&operation={{ operation_filter }}{% endif %}{% if team_id %}&team_id={{ team_id }}{% endif %}" 
+                       class="join-item btn btn-sm {% if p == page %}btn-active{% endif %}">{{ p }}</a>
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <a href="?page={{ page + 1 }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if operation_filter %}&operation={{ operation_filter }}{% endif %}{% if team_id %}&team_id={{ team_id }}{% endif %}" 
+                       class="join-item btn btn-sm">›</a>
+                    <a href="?page={{ total_pages }}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if operation_filter %}&operation={{ operation_filter }}{% endif %}{% if team_id %}&team_id={{ team_id }}{% endif %}" 
+                       class="join-item btn btn-sm">»</a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="text-center text-sm text-base-content/70 mt-4">
+                Showing {{ ((page - 1) * per_page) + 1 }} to {{ [page * per_page, total_count]|min }} of {{ total_count }} logs
+            </div>
+            {% else %}
+            <div class="text-center py-12">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto text-base-content/30 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="text-base-content/70">No CTFd operation logs found</p>
+                <p class="text-sm text-base-content/50 mt-2">Logs will appear here when you perform CTFd API operations</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Log Details Modal -->
+<dialog id="logDetailsModal" class="modal">
+    <div class="modal-box max-w-4xl">
+        <h3 class="font-bold text-lg mb-4">Operation Details</h3>
+        <div id="logDetailsContent" class="space-y-4">
+            <!-- Content will be populated by JavaScript -->
+        </div>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn">Close</button>
+            </form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+// Store all logs data for details modal
+const logsData = {{ logs|tojson }};
+
+// Filter logs in table
+function filterLogs() {
+    const input = document.getElementById('searchInput');
+    const filter = input.value.toLowerCase();
+    const table = document.getElementById('logsTable');
+    const rows = table.getElementsByTagName('tr');
+    
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const text = row.textContent || row.innerText;
+        if (text.toLowerCase().indexOf(filter) > -1) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    }
+}
+
+// Show log details in modal
+function showLogDetails(logId) {
+    const log = logsData.find(l => l.id === logId);
+    if (!log) {
+        alert('Log details not found');
+        return;
+    }
+    
+    let html = '<div class="space-y-4">';
+    
+    // Basic Info
+    html += '<div class="card bg-base-200">';
+    html += '<div class="card-body py-3">';
+    html += '<h4 class="font-semibold text-sm">Basic Information</h4>';
+    html += '<div class="grid grid-cols-2 gap-2 text-sm">';
+    html += `<div><span class="font-medium">Operation:</span> ${log.operation_type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</div>`;
+    html += `<div><span class="font-medium">Status:</span> <span class="badge badge-${log.status === 'success' ? 'success' : log.status === 'failed' ? 'error' : 'warning'} badge-sm">${log.status}</span></div>`;
+    if (log.team_name) {
+        html += `<div><span class="font-medium">Team:</span> ${log.team_name}</div>`;
+    }
+    if (log.ctfd_entity_id) {
+        html += `<div><span class="font-medium">CTFd Entity ID:</span> ${log.ctfd_entity_id}</div>`;
+    }
+    html += `<div class="col-span-2"><span class="font-medium">Timestamp:</span> ${log.created_at}</div>`;
+    html += '</div>';
+    html += '</div></div>';
+    
+    // Request Data
+    if (log.request_data) {
+        html += '<div class="card bg-base-200">';
+        html += '<div class="card-body py-3">';
+        html += '<h4 class="font-semibold text-sm mb-2">Request Data</h4>';
+        html += '<pre class="text-xs bg-base-300 p-3 rounded overflow-x-auto">' + JSON.stringify(log.request_data, null, 2) + '</pre>';
+        html += '</div></div>';
+    }
+    
+    // Response Data
+    if (log.response_data) {
+        html += '<div class="card bg-base-200">';
+        html += '<div class="card-body py-3">';
+        html += '<h4 class="font-semibold text-sm mb-2">Response Data</h4>';
+        html += '<pre class="text-xs bg-base-300 p-3 rounded overflow-x-auto">' + JSON.stringify(log.response_data, null, 2) + '</pre>';
+        html += '</div></div>';
+    }
+    
+    // Error Message
+    if (log.error_message) {
+        html += '<div class="alert alert-error">';
+        html += '<svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+        html += '<div>';
+        html += '<h4 class="font-bold">Error Message</h4>';
+        html += '<div class="text-sm">' + log.error_message + '</div>';
+        html += '</div>';
+        html += '</div>';
+    }
+    
+    html += '</div>';
+    
+    document.getElementById('logDetailsContent').innerHTML = html;
+    document.getElementById('logDetailsModal').showModal();
+}
+
+// Clear all logs
+function clearAllLogs() {
+    if (!confirm('Are you sure you want to clear all CTFd operation logs? This action cannot be undone.')) {
+        return;
+    }
+    
+    fetch('{{ url_for("settings.clear_ctfd_logs") }}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to clear logs: ' + error.message);
+    });
+}
+</script>
+
+{% endblock %}
