@@ -958,7 +958,7 @@ function showEditModal() {
 }
 
 async function saveChallenge() {
-    const challengeId = {{ challenge.id }};
+    const challengeId = {{ challenge.id | tojson | safe }};
     const updateData = {
         name: document.getElementById('editName').value,
         category: document.getElementById('editCategory').value,
@@ -1053,7 +1053,7 @@ function showConflictResolutionModal() {
 }
 
 async function resolveAllConflicts(resolution_type) {
-    const challengeId = {{ challenge.id }};
+    const challengeId = {{ challenge.id | tojson | safe }};
     
     if (!confirm(`Are you sure you want to ${resolution_type === 'keep_portal' ? 'keep all portal values' : 'use all GitHub values'}?`)) {
         return;
@@ -1087,7 +1087,7 @@ async function resolveAllConflicts(resolution_type) {
 }
 
 async function resolveMergeConflicts() {
-    const challengeId = {{ challenge.id }};
+    const challengeId = {{ challenge.id | tojson | safe }};
     const conflictingFields = {{ challenge.conflicting_fields | tojson | safe }};
     
     // Gather user's choices for each field

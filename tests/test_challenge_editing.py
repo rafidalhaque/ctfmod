@@ -125,8 +125,8 @@ def detect_conflicts_test(existing_challenge, github_data):
         github_value = github_data.get(field)
         original_value = github_snapshot.get(field) if github_snapshot else None
         
-        # Skip if both are None or empty
-        if not current_value and not github_value:
+        # Skip if both are None (but not empty strings or 0, which are valid)
+        if current_value is None and github_value is None:
             continue
         
         # Conflict detected if both differ from original

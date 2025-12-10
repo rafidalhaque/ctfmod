@@ -13,6 +13,9 @@ challenges_bp = Blueprint('challenges', __name__)
 # Configure logger
 logger = logging.getLogger(__name__)
 
+# Fields that can be edited in the portal
+EDITABLE_CHALLENGE_FIELDS = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
+
 
 def _fetch_artifacts_recursive(repo_owner, repo_name, path, branch, github_token, base_path=None):
     """
@@ -684,9 +687,8 @@ def update_challenge(challenge_id):
         
         # Build update object with allowed fields
         update_data = {}
-        allowed_fields = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
         
-        for field in allowed_fields:
+        for field in EDITABLE_CHALLENGE_FIELDS:
             if field in data:
                 update_data[field] = data[field]
         
@@ -698,7 +700,7 @@ def update_challenge(challenge_id):
         original_data = existing.data[0]
         if 'github_data_snapshot' not in original_data or original_data['github_data_snapshot'] is None:
             # First edit - save current state as original GitHub snapshot
-            github_snapshot = {k: original_data.get(k) for k in allowed_fields if k in original_data}
+            github_snapshot = {k: original_data.get(k) for k in EDITABLE_CHALLENGE_FIELDS if k in original_data}
             update_data['github_data_snapshot'] = github_snapshot
         
         update_data['manually_edited'] = True

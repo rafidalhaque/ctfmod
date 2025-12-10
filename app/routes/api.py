@@ -12,6 +12,9 @@ api_bp = Blueprint('api', __name__)
 # Maximum YAML content size (100KB) to prevent DoS
 MAX_YAML_SIZE = 100 * 1024
 
+# Fields that can be edited in the portal (shared with challenges module)
+EDITABLE_CHALLENGE_FIELDS = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
+
 
 def safe_int(value, default=None):
     """Attempt to convert value to int, returning default if conversion fails.
@@ -240,21 +243,18 @@ def detect_conflicts(existing_challenge, github_data):
     Returns:
         dict with conflicting fields or None if no conflicts
     """
-    # Fields that can be edited and checked for conflicts
-    editable_fields = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
-    
     # Get the original GitHub snapshot (before portal edits)
     github_snapshot = existing_challenge.get('github_data_snapshot', {})
     
     conflicts = {}
     
-    for field in editable_fields:
+    for field in EDITABLE_CHALLENGE_FIELDS:
         current_value = existing_challenge.get(field)
         github_value = github_data.get(field)
         original_value = github_snapshot.get(field) if github_snapshot else None
         
-        # Skip if both are None or empty
-        if not current_value and not github_value:
+        # Skip if both are None (but not empty strings or 0, which are valid)
+        if current_value is None and github_value is None:
             continue
         
         # Conflict detected if:
@@ -376,8 +376,9 @@ def sync_github():
                     'setter': pr['user']['login']
                 }
             
-            # Check if challenge already exists
-            existing = supabase.table('challenges').select('*').eq('pr_number', pr_number).execute()
+            # Check if challenge already exists - select specific fields needed for conflict detection
+            fields_to_select = 'id, manually_edited, github_data_snapshot, ' + ', '.join(EDITABLE_CHALLENGE_FIELDS)
+            existing = supabase.table('challenges').select(fields_to_select).eq('pr_number', pr_number).execute()
             
             if existing.data:
                 # Update existing challenge with new data from challenge.yml
