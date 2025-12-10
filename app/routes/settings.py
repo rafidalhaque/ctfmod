@@ -471,6 +471,9 @@ def test_ctfd_settings():
     if not supabase:
         return jsonify({'error': 'Database not configured'}), 500
     
+    # Length of random ID suffix for test challenge name
+    TEST_CHALLENGE_ID_LENGTH = 8
+    
     try:
         # Get CTFd configuration from database settings
         ctfd_url, ctfd_api_key = get_ctfd_config()
@@ -495,7 +498,7 @@ def test_ctfd_settings():
         
         # Test 1: Create a test challenge
         test_challenge_data = {
-            'name': f'_TEST_CHALLENGE_{uuid.uuid4().hex[:8]}',
+            'name': f'_TEST_CHALLENGE_{uuid.uuid4().hex[:TEST_CHALLENGE_ID_LENGTH]}',
             'category': 'Test',
             'description': 'This is a temporary test challenge to verify CTFd API connectivity. It will be deleted automatically.',
             'value': 100,
@@ -3085,8 +3088,9 @@ def ctfd_logs():
         except Exception as e:
             flash(f'Error fetching CTFd operation logs: {str(e)}', 'error')
     
-    # Calculate pagination info
+    # Calculate pagination info and total operations
     total_pages = (total_count + per_page - 1) // per_page if total_count > 0 else 1
+    total_operations = status_counts.get('pending', 0) + status_counts.get('success', 0) + status_counts.get('failed', 0)
     
     return render_template('settings/ctfd_logs.html', 
                           logs=logs,
@@ -3098,7 +3102,8 @@ def ctfd_logs():
                           operation_filter=operation_filter,
                           team_id=team_id,
                           status_counts=status_counts,
-                          operation_types=operation_types)
+                          operation_types=operation_types,
+                          total_operations=total_operations)
 
 
 @settings_bp.route('/settings/ctfd-logs/clear', methods=['POST'])
@@ -3111,7 +3116,8 @@ def clear_ctfd_logs():
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
-        # Delete all records by matching any id > 0
+        # Delete all records by matching any id > 0 (all valid records have positive IDs)
+        # This is a common pattern in Supabase/PostgREST to delete all records without truncating
         supabase.table('ctfd_operation_logs').delete().gt('id', 0).execute()
         return jsonify({'success': True, 'message': 'All CTFd operation logs cleared'})
     except Exception as e:

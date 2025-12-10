@@ -32,7 +32,7 @@
                 </svg>
             </div>
             <div class="stat-title">Total Operations</div>
-            <div class="stat-value text-primary">{{ status_counts.get('pending', 0) + status_counts.get('success', 0) + status_counts.get('failed', 0) }}</div>
+            <div class="stat-value text-primary">{{ total_operations }}</div>
         </div>
         
         <div class="stat">
@@ -240,7 +240,7 @@
 
 <script>
 // Store all logs data for details modal
-const logsData = {{ logs|tojson }};
+const logsData = {{ logs|tojson|safe }};
 
 // Filter logs in table
 function filterLogs() {
