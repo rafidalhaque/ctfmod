@@ -8,8 +8,10 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - 📊 **Dashboard**: Overview of challenge statistics with progress tracking for all rounds and difficulties
 - ⏱️ **Round Countdown Timers**: Schedule rounds with date/time and timezone, with live countdown on dashboard
 - 📝 **Challenge Management**: View, filter, and manage challenges by category, difficulty, and setter
+- ✏️ **Challenge Editing**: Edit any challenge details directly from the portal with full form support
 - 🔗 **GitHub Integration**: Sync challenges from GitHub PRs, approve/decline/request changes
 - 🔄 **Auto-Sync**: Automatically sync challenges from GitHub at configurable intervals
+- ⚔️ **Conflict Resolution**: Automatic detection and resolution of conflicts between portal edits and GitHub updates
 - 🚀 **CTFd Integration**: Push approved challenges to CTFd with configurable field selection and settings
 - 🎯 **Target Setting**: Set and track challenge targets by category, difficulty, and round with full edit support
 - 🏆 **Rounds Management**: Organize challenges into rounds (e.g., Preliminary, Final) with scheduling
@@ -60,6 +62,11 @@ cp .env.example .env
      3. `003_add_round_schedule.sql` - Adds schedule fields to rounds (start_datetime, timezone)
      4. `004_add_email_templates.sql` - Adds email templates table for dynamic email designer
      5. `005_add_teams_and_credentials.sql` - Adds teams, team_members, and CTFd credentials tables
+     6. `006_add_email_attachments.sql` - Adds email attachments support
+     7. `007_update_teams_schema.sql` - Updates teams table schema
+     8. `008_add_email_audit_logs.sql` - Adds email audit logs
+     9. `009_add_ctfd_operation_logs.sql` - Adds CTFd operation logs
+     10. `010_add_conflict_resolution_fields.sql` - Adds fields for challenge editing and conflict resolution
    - Update `.env` with your Supabase URL and key
 
 6. Run the application:
@@ -93,6 +100,13 @@ Adds support for teams and participant management:
 - `team_members` - Stores team member details (name, email, institution, etc.)
 - `ctfd_team_credentials` - Stores CTFd team-level credentials (username and password in plain text)
 - `ctfd_user_credentials` - Stores CTFd user-level credentials (username and password in plain text)
+
+### Migration 010: Conflict Resolution
+Adds support for challenge editing and conflict resolution:
+- `manually_edited` - Boolean flag to track portal-edited challenges
+- `github_data_snapshot` - JSONB field storing original GitHub data
+- `has_conflicts` - Boolean flag indicating sync conflicts
+- `conflicting_fields` - JSONB field storing conflict details with portal/GitHub values
 
 Run migrations in your Supabase SQL Editor in numerical order.
 
@@ -241,25 +255,27 @@ CREATE TABLE ctfd_user_credentials (
 2. **Change Password**: Update your password from the user menu dropdown
 3. **Sync from GitHub**: Click "Sync from GitHub" to import challenges from open PRs
 4. **Review Challenges**: View challenge details, README, and challenge.yml
-5. **Approve/Decline**: Merge or close PRs directly from the platform
-6. **Push to CTFd**: Deploy accepted challenges to your CTFd instance with configurable settings:
+5. **Edit Challenges**: Click "Edit Challenge" button to modify any challenge field (name, category, difficulty, points, description, flag, hint, solution)
+6. **Approve/Decline**: Merge or close PRs directly from the platform
+7. **Conflict Resolution**: When syncing from GitHub after editing a challenge in portal, conflicts are automatically detected and you can resolve them by choosing to keep portal values, use GitHub values, or merge field-by-field
+8. **Push to CTFd**: Deploy accepted challenges to your CTFd instance with configurable settings:
    - Select which fields to include (description, flag, connection info, attribution, etc.)
    - Configure challenge settings (type: standard/dynamic, state: visible/hidden, max attempts)
    - Save your preferences as defaults for future challenges
-7. **Manage Rounds**: Create and organize CTF rounds with schedules in Settings
-8. **Round Schedules**: Set date, time, and timezone for each round to show countdown timers on dashboard
-9. **Auto-Sync**: Configure automatic GitHub sync interval in GitHub settings
-10. **Set Targets**: Configure challenge targets by category, difficulty, and round
-11. **Edit Targets**: Modify existing targets directly from the Settings page
-12. **View Statistics**: Dashboard shows detailed stats (accepted, pending, declined) for all targets
-13. **Stats API**: Generate an API key in Settings to access statistics via public API
-14. **SMTP Configuration**: Configure email server settings (host, port, username, password, TLS/SSL) in Settings
-15. **Test Email**: Send a test email to verify SMTP configuration
-16. **Email Templates**: Create multiple dynamic email templates with variable placeholders
-17. **Template Preview**: Preview email templates with sample data before saving
-18. **Bulk Email Sending**: Send emails to all participants using any template with automatic variable substitution
-19. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
-20. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
+9. **Manage Rounds**: Create and organize CTF rounds with schedules in Settings
+10. **Round Schedules**: Set date, time, and timezone for each round to show countdown timers on dashboard
+11. **Auto-Sync**: Configure automatic GitHub sync interval in GitHub settings
+12. **Set Targets**: Configure challenge targets by category, difficulty, and round
+13. **Edit Targets**: Modify existing targets directly from the Settings page
+14. **View Statistics**: Dashboard shows detailed stats (accepted, pending, declined) for all targets
+15. **Stats API**: Generate an API key in Settings to access statistics via public API
+16. **SMTP Configuration**: Configure email server settings (host, port, username, password, TLS/SSL) in Settings
+17. **Test Email**: Send a test email to verify SMTP configuration
+18. **Email Templates**: Create multiple dynamic email templates with variable placeholders
+19. **Template Preview**: Preview email templates with sample data before saving
+20. **Bulk Email Sending**: Send emails to all participants using any template with automatic variable substitution
+21. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
+22. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
 
 ### CTFd Push Configuration
 
@@ -290,6 +306,30 @@ When pushing a challenge to CTFd, you can configure:
 - **Function**: Scoring function type - Logarithmic or Linear (default: logarithmic)
 
 **Save as Default**: Check this option to remember your preferences for future challenges. Settings are stored in your browser's localStorage.
+
+### Challenge Editing and Conflict Resolution
+
+The portal allows you to edit challenge details directly without modifying GitHub. When you edit a challenge:
+
+1. **Edit Any Field**: Click the "Edit Challenge" button on the challenge view page to modify:
+   - Name, Category, Difficulty, Points
+   - Description, Flag, Hint, Solution
+
+2. **Automatic Conflict Detection**: When syncing from GitHub after portal edits:
+   - The system detects if the same fields were updated in both places
+   - A warning banner appears on the challenge page
+   - Click "Resolve Conflicts" to see a side-by-side comparison
+
+3. **Conflict Resolution Options**:
+   - **Keep All Portal Values**: Preserve all your portal edits
+   - **Use All GitHub Values**: Accept all GitHub changes
+   - **Merge Field-by-Field**: Choose per field which version to keep
+
+4. **How It Works**:
+   - When you first edit a challenge, the portal saves a snapshot of the original GitHub data
+   - During sync, the system compares: current portal values, new GitHub values, and the original snapshot
+   - Conflicts are only flagged when both versions differ from the original
+   - After resolution, the conflict flag is cleared and syncing resumes normally
 
 ### Email Template Variables
 
