@@ -176,8 +176,13 @@ Updated `/challenges/<id>/push-to-ctfd` endpoint to:
 - ✅ Backend data building
 - ✅ Response validation
 
+### Dynamic Challenge Tests (test_dynamic_challenge.py)
+- ✅ Dynamic challenges include required fields (initial, minimum, decay, function)
+- ✅ Standard challenges don't include dynamic fields
+- ✅ Partial dynamic field support (graceful handling of missing fields)
+
 ### Code Quality
-- ✅ Code review completed (3 issues identified and fixed)
+- ✅ Code review completed (issues identified and addressed)
 - ✅ Security scan passed (0 vulnerabilities)
 - ✅ Syntax validation passed
 - ✅ Template validation passed
@@ -225,6 +230,13 @@ Based on `ctfd_api_swagger.json`:
 - `requirements` (object)
 - `extra` (object)
 
+#### Dynamic Scoring Fields
+When `type` is set to "dynamic", the following additional fields from `challenge.yml` are automatically included if present:
+- `initial` (integer) - Initial value for dynamic scoring
+- `minimum` (integer) - Minimum value the challenge can reach
+- `decay` (integer) - Amount by which value decreases per solve
+- `function` (string) - Scoring function type (e.g., 'logarithmic')
+
 ### Storage
 - Configuration stored in browser's localStorage
 - Key: `ctfd_push_defaults`
@@ -265,5 +277,6 @@ The implementation is production-ready and has been validated through:
 - Unit testing (5 tests, all passed)
 - Integration testing (12 verifications, all passed)
 - Edge case testing (4 scenarios, all passed)
-- Code review (3 issues found and fixed)
+- Dynamic challenge testing (3 tests, all passed)
+- Code review (issues found and addressed)
 - Security scanning (0 vulnerabilities)
