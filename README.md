@@ -10,7 +10,7 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - 📝 **Challenge Management**: View, filter, and manage challenges by category, difficulty, and setter
 - 🔗 **GitHub Integration**: Sync challenges from GitHub PRs, approve/decline/request changes
 - 🔄 **Auto-Sync**: Automatically sync challenges from GitHub at configurable intervals
-- 🚀 **CTFd Integration**: Push approved challenges to CTFd with one click
+- 🚀 **CTFd Integration**: Push approved challenges to CTFd with configurable field selection and settings
 - 🎯 **Target Setting**: Set and track challenge targets by category, difficulty, and round with full edit support
 - 🏆 **Rounds Management**: Organize challenges into rounds (e.g., Preliminary, Final) with scheduling
 - 📈 **Public Stats API**: Access detailed statistics via authenticated API
@@ -242,7 +242,10 @@ CREATE TABLE ctfd_user_credentials (
 3. **Sync from GitHub**: Click "Sync from GitHub" to import challenges from open PRs
 4. **Review Challenges**: View challenge details, README, and challenge.yml
 5. **Approve/Decline**: Merge or close PRs directly from the platform
-6. **Push to CTFd**: Deploy accepted challenges to your CTFd instance
+6. **Push to CTFd**: Deploy accepted challenges to your CTFd instance with configurable settings:
+   - Select which fields to include (description, flag, connection info, attribution, etc.)
+   - Configure challenge settings (type: standard/dynamic, state: visible/hidden, max attempts)
+   - Save your preferences as defaults for future challenges
 7. **Manage Rounds**: Create and organize CTF rounds with schedules in Settings
 8. **Round Schedules**: Set date, time, and timezone for each round to show countdown timers on dashboard
 9. **Auto-Sync**: Configure automatic GitHub sync interval in GitHub settings
@@ -257,6 +260,27 @@ CREATE TABLE ctfd_user_credentials (
 18. **Bulk Email Sending**: Send emails to all participants using any template with automatic variable substitution
 19. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
 20. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
+
+### CTFd Push Configuration
+
+When pushing a challenge to CTFd, you can configure:
+
+**Fields to Include:**
+- ✓ Name (required)
+- ✓ Category (required)
+- ✓ Points/Value (required)
+- ☑ Description
+- ☑ Flag
+- ☑ Connection Info (from challenge.yml)
+- ☑ Attribution/Author (from challenge.yml)
+- ☐ Requirements (from challenge.yml)
+
+**Challenge Settings:**
+- **Type**: Standard or Dynamic scoring
+- **State**: Hidden (default) or Visible - Hidden challenges won't appear to players until made visible
+- **Max Attempts**: 0 for unlimited, or set a specific number
+
+**Save as Default**: Check this option to remember your preferences for future challenges. Settings are stored in your browser's localStorage.
 
 ### Email Template Variables
 

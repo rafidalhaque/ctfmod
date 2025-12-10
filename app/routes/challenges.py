@@ -416,7 +416,7 @@ def request_changes(challenge_id):
 @challenges_bp.route('/challenges/<int:challenge_id>/push-to-ctfd', methods=['POST'])
 @login_required
 def push_to_ctfd(challenge_id):
-    """Push a challenge to CTFd with comprehensive validation and error handling."""
+    """Push a challenge to CTFd with configurable fields and settings."""
     supabase = get_supabase_client()
     
     if not supabase:
@@ -424,6 +424,31 @@ def push_to_ctfd(challenge_id):
         return jsonify({'error': 'Database not configured'}), 500
     
     try:
+        # Get push configuration from request body
+        config = request.get_json() or {}
+        fields_config = config.get('fields', {})
+        settings_config = config.get('settings', {})
+        
+        # Set defaults for configuration if not provided
+        if not fields_config:
+            fields_config = {
+                'name': True,
+                'category': True,
+                'description': True,
+                'value': True,
+                'flag': True,
+                'connection_info': True,
+                'attribution': True,
+                'requirements': False
+            }
+        
+        if not settings_config:
+            settings_config = {
+                'type': 'standard',
+                'state': 'hidden',
+                'max_attempts': 0
+            }
+        
         # Get challenge info
         logger.info(f"Fetching challenge {challenge_id} from database")
         response = supabase.table('challenges').select('*').eq('id', challenge_id).single().execute()
@@ -474,37 +499,47 @@ def push_to_ctfd(challenge_id):
             else:
                 logger.warning(f"Invalid category or name for challenge {challenge_id}, skipping challenge.yml fetch")
         
-        # Prepare challenge data for CTFd
+        # Prepare challenge data for CTFd based on configuration
         ctfd_challenge = {
-            'name': challenge.get('name'),
-            'category': challenge.get('category'),
-            'description': challenge.get('description', ''),
-            'value': challenge.get('points', 100),
-            'type': 'standard',
-            'state': 'hidden'
+            'name': challenge.get('name'),  # Always required
+            'category': challenge.get('category'),  # Always required
+            'value': challenge.get('points', 100),  # Always required
+            'type': settings_config.get('type', 'standard'),
+            'state': settings_config.get('state', 'hidden')
         }
         
-        # Add additional fields from challenge.yml if available
-        if challenge_yml:
-            # Add max_attempts if specified
-            if 'max_attempts' in challenge_yml:
-                ctfd_challenge['max_attempts'] = challenge_yml['max_attempts']
-            
-            # Add connection_info if specified
-            if 'connection_info' in challenge_yml:
-                ctfd_challenge['connection_info'] = challenge_yml['connection_info']
-            
-            # Add attribution if specified (prefer 'attribution', fallback to 'author')
-            if 'attribution' in challenge_yml or 'author' in challenge_yml:
+        # Add description if configured
+        if fields_config.get('description', True):
+            ctfd_challenge['description'] = challenge.get('description', '')
+        
+        # Add max_attempts from settings
+        max_attempts = settings_config.get('max_attempts', 0)
+        if max_attempts > 0:
+            ctfd_challenge['max_attempts'] = max_attempts
+        
+        # Add connection_info if configured and available from challenge.yml
+        if fields_config.get('connection_info', True) and challenge_yml and 'connection_info' in challenge_yml:
+            ctfd_challenge['connection_info'] = challenge_yml['connection_info']
+        
+        # Add attribution if configured and available
+        if fields_config.get('attribution', True):
+            if challenge_yml and ('attribution' in challenge_yml or 'author' in challenge_yml):
                 ctfd_challenge['attribution'] = challenge_yml.get('attribution') or challenge_yml.get('author')
-            
-            # Add extra metadata if specified
-            if 'extra' in challenge_yml:
-                ctfd_challenge['extra'] = challenge_yml['extra']
+        
+        # Add requirements if configured and available
+        if fields_config.get('requirements', False) and challenge_yml and 'requirements' in challenge_yml:
+            ctfd_challenge['requirements'] = challenge_yml['requirements']
+        
+        # Add extra metadata if specified in challenge.yml
+        if challenge_yml and 'extra' in challenge_yml:
+            ctfd_challenge['extra'] = challenge_yml['extra']
+        
+        # Determine if flag should be pushed
+        flag_content = None
+        if fields_config.get('flag', True):
+            flag_content = challenge.get('flag')
         
         # Push challenge and flag using the client with transaction-like behavior
-        flag_content = challenge.get('flag')
-        
         try:
             result = ctfd_client.push_challenge_with_flag(
                 challenge_data=ctfd_challenge,
@@ -523,11 +558,29 @@ def push_to_ctfd(challenge_id):
             
             logger.info(f"Challenge {challenge_id} successfully pushed to CTFd with ID {ctfd_id}")
             
+            # Build detailed message - only include fields that were actually pushed with content
+            pushed_fields = []
+            if fields_config.get('description', True) and ctfd_challenge.get('description'):
+                pushed_fields.append('description')
+            if fields_config.get('flag', True) and flag_content:
+                pushed_fields.append('flag')
+            if fields_config.get('connection_info', True) and ctfd_challenge.get('connection_info'):
+                pushed_fields.append('connection info')
+            if fields_config.get('attribution', True) and ctfd_challenge.get('attribution'):
+                pushed_fields.append('attribution')
+            if fields_config.get('requirements', False) and ctfd_challenge.get('requirements'):
+                pushed_fields.append('requirements')
+            
+            message = f'Challenge pushed to CTFd successfully with state: {settings_config.get("state", "hidden")}'
+            if pushed_fields:
+                message += f'. Included: {", ".join(pushed_fields)}'
+            
             return jsonify({
                 'success': True,
-                'message': 'Challenge pushed to CTFd successfully',
+                'message': message,
                 'ctfd_id': ctfd_id,
-                'flag_created': result['flag'] is not None
+                'flag_created': result['flag'] is not None,
+                'settings': settings_config
             })
             
         except CTFdAPIException as e:
