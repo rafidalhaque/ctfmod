@@ -700,8 +700,11 @@ function showPushConfigModal() {
         }
     }
     
-    typeEl.removeEventListener('change', toggleDynamicSection); // Remove old listener
-    typeEl.addEventListener('change', toggleDynamicSection);
+    // Store reference to the handler so we can remove it if needed
+    if (!typeEl._toggleDynamicSectionHandler) {
+        typeEl._toggleDynamicSectionHandler = toggleDynamicSection;
+        typeEl.addEventListener('change', toggleDynamicSection);
+    }
     
     // Initial toggle based on current value
     toggleDynamicSection();
@@ -746,11 +749,21 @@ async function pushToCTFd(id) {
     
     // Add dynamic scoring parameters if type is dynamic
     if (config.settings.type === 'dynamic') {
+        const initialEl = document.getElementById('dynamic_initial');
+        const minimumEl = document.getElementById('dynamic_minimum');
+        const decayEl = document.getElementById('dynamic_decay');
+        const functionEl = document.getElementById('dynamic_function');
+        
+        if (!initialEl || !minimumEl || !decayEl || !functionEl) {
+            alert('Configuration error: Dynamic scoring fields not found. Please refresh the page and try again.');
+            return;
+        }
+        
         config.dynamic_scoring = {
-            initial: parseInt(document.getElementById('dynamic_initial').value, 10) || 500,
-            minimum: parseInt(document.getElementById('dynamic_minimum').value, 10) || 100,
-            decay: parseInt(document.getElementById('dynamic_decay').value, 10) || 50,
-            function: document.getElementById('dynamic_function').value || 'logarithmic'
+            initial: parseInt(initialEl.value, 10) || 500,
+            minimum: parseInt(minimumEl.value, 10) || 100,
+            decay: parseInt(decayEl.value, 10) || 50,
+            function: functionEl.value || 'logarithmic'
         };
     }
     
