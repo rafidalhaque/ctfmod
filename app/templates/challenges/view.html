@@ -454,6 +454,58 @@
             </div>
         </div>
         
+        <!-- Dynamic Scoring Parameters (shown only for dynamic type) -->
+        <div id="dynamic_scoring_section" class="hidden">
+            <div class="divider">Dynamic Scoring Parameters</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Initial Value</span>
+                    </label>
+                    <input type="number" id="dynamic_initial" class="input input-bordered input-sm" 
+                           placeholder="500" min="1" value="500" />
+                    <label class="label">
+                        <span class="label-text-alt">Initial point value</span>
+                    </label>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Minimum Value</span>
+                    </label>
+                    <input type="number" id="dynamic_minimum" class="input input-bordered input-sm" 
+                           placeholder="100" min="1" value="100" />
+                    <label class="label">
+                        <span class="label-text-alt">Minimum point value</span>
+                    </label>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Decay</span>
+                    </label>
+                    <input type="number" id="dynamic_decay" class="input input-bordered input-sm" 
+                           placeholder="50" min="1" value="50" />
+                    <label class="label">
+                        <span class="label-text-alt">Point decay rate</span>
+                    </label>
+                </div>
+                
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Function</span>
+                    </label>
+                    <select id="dynamic_function" class="select select-bordered select-sm">
+                        <option value="logarithmic">Logarithmic</option>
+                        <option value="linear">Linear</option>
+                    </select>
+                    <label class="label">
+                        <span class="label-text-alt">Scoring function type</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
         <div class="modal-action mt-6">
             <form method="dialog">
                 <button class="btn btn-ghost">Cancel</button>
@@ -591,10 +643,68 @@ function showPushConfigModal() {
                     maxAttemptsEl.value = defaults.settings.max_attempts;
                 }
             }
+            
+            // Apply dynamic scoring defaults if available
+            if (defaults.dynamic_scoring) {
+                const initialEl = document.getElementById('dynamic_initial');
+                const minimumEl = document.getElementById('dynamic_minimum');
+                const decayEl = document.getElementById('dynamic_decay');
+                const functionEl = document.getElementById('dynamic_function');
+                
+                if (initialEl && defaults.dynamic_scoring.initial !== undefined) {
+                    initialEl.value = defaults.dynamic_scoring.initial;
+                }
+                if (minimumEl && defaults.dynamic_scoring.minimum !== undefined) {
+                    minimumEl.value = defaults.dynamic_scoring.minimum;
+                }
+                if (decayEl && defaults.dynamic_scoring.decay !== undefined) {
+                    decayEl.value = defaults.dynamic_scoring.decay;
+                }
+                if (functionEl && defaults.dynamic_scoring.function) {
+                    functionEl.value = defaults.dynamic_scoring.function;
+                }
+            }
         } catch (e) {
             console.error('Error loading defaults:', e);
         }
     }
+    
+    // Pre-fill dynamic scoring values from challenge.yml if available
+    {% if challenge_yml %}
+    const challengeYml = {{ challenge_yml | tojson }};
+    if (challengeYml) {
+        if (challengeYml.initial !== undefined) {
+            document.getElementById('dynamic_initial').value = challengeYml.initial;
+        }
+        if (challengeYml.minimum !== undefined) {
+            document.getElementById('dynamic_minimum').value = challengeYml.minimum;
+        }
+        if (challengeYml.decay !== undefined) {
+            document.getElementById('dynamic_decay').value = challengeYml.decay;
+        }
+        if (challengeYml.function) {
+            document.getElementById('dynamic_function').value = challengeYml.function;
+        }
+    }
+    {% endif %}
+    
+    // Set up event listener for type changes
+    const typeEl = document.getElementById('setting_type');
+    const dynamicSection = document.getElementById('dynamic_scoring_section');
+    
+    function toggleDynamicSection() {
+        if (typeEl.value === 'dynamic') {
+            dynamicSection.classList.remove('hidden');
+        } else {
+            dynamicSection.classList.add('hidden');
+        }
+    }
+    
+    typeEl.removeEventListener('change', toggleDynamicSection); // Remove old listener
+    typeEl.addEventListener('change', toggleDynamicSection);
+    
+    // Initial toggle based on current value
+    toggleDynamicSection();
     
     document.getElementById('pushConfigModal').showModal();
 }
@@ -633,6 +743,16 @@ async function pushToCTFd(id) {
             max_attempts: parseInt(document.getElementById('setting_max_attempts').value, 10) || 0
         }
     };
+    
+    // Add dynamic scoring parameters if type is dynamic
+    if (config.settings.type === 'dynamic') {
+        config.dynamic_scoring = {
+            initial: parseInt(document.getElementById('dynamic_initial').value, 10) || 500,
+            minimum: parseInt(document.getElementById('dynamic_minimum').value, 10) || 100,
+            decay: parseInt(document.getElementById('dynamic_decay').value, 10) || 50,
+            function: document.getElementById('dynamic_function').value || 'logarithmic'
+        };
+    }
     
     // Save as default if checkbox is checked
     const saveDefaultCheckbox = document.getElementById('save_as_default');
