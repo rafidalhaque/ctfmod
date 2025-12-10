@@ -1,6 +1,21 @@
 """
 Test to verify that dynamic challenges are pushed correctly with dynamic scoring fields.
 """
+import json
+
+
+def add_dynamic_fields_to_challenge(ctfd_challenge, settings_config, challenge_yml):
+    """Helper function to add dynamic scoring fields based on challenge type."""
+    if settings_config.get('type') == 'dynamic' and challenge_yml:
+        if 'initial' in challenge_yml:
+            ctfd_challenge['initial'] = challenge_yml['initial']
+        if 'minimum' in challenge_yml:
+            ctfd_challenge['minimum'] = challenge_yml['minimum']
+        if 'decay' in challenge_yml:
+            ctfd_challenge['decay'] = challenge_yml['decay']
+        if 'function' in challenge_yml:
+            ctfd_challenge['function'] = challenge_yml['function']
+
 
 def test_dynamic_challenge_with_fields():
     """Test that dynamic challenges include required dynamic scoring fields."""
@@ -75,15 +90,7 @@ def test_dynamic_challenge_with_fields():
         ctfd_challenge['attribution'] = challenge_yml['attribution']
     
     # Add dynamic scoring fields if type is 'dynamic' (THE FIX)
-    if settings_config.get('type') == 'dynamic' and challenge_yml:
-        if 'initial' in challenge_yml:
-            ctfd_challenge['initial'] = challenge_yml['initial']
-        if 'minimum' in challenge_yml:
-            ctfd_challenge['minimum'] = challenge_yml['minimum']
-        if 'decay' in challenge_yml:
-            ctfd_challenge['decay'] = challenge_yml['decay']
-        if 'function' in challenge_yml:
-            ctfd_challenge['function'] = challenge_yml['function']
+    add_dynamic_fields_to_challenge(ctfd_challenge, settings_config, challenge_yml)
     
     # Flag handling
     flag_content = None
@@ -91,7 +98,6 @@ def test_dynamic_challenge_with_fields():
         flag_content = challenge['flag']
     
     print("Built challenge data for CTFd:")
-    import json
     print(json.dumps(ctfd_challenge, indent=2))
     print()
     print(f"Flag to be created: {flag_content}")
@@ -174,18 +180,9 @@ def test_standard_challenge_no_dynamic_fields():
     }
     
     # Add dynamic scoring fields ONLY if type is 'dynamic'
-    if settings_config.get('type') == 'dynamic' and challenge_yml:
-        if 'initial' in challenge_yml:
-            ctfd_challenge['initial'] = challenge_yml['initial']
-        if 'minimum' in challenge_yml:
-            ctfd_challenge['minimum'] = challenge_yml['minimum']
-        if 'decay' in challenge_yml:
-            ctfd_challenge['decay'] = challenge_yml['decay']
-        if 'function' in challenge_yml:
-            ctfd_challenge['function'] = challenge_yml['function']
+    add_dynamic_fields_to_challenge(ctfd_challenge, settings_config, challenge_yml)
     
     print("Built challenge data for CTFd:")
-    import json
     print(json.dumps(ctfd_challenge, indent=2))
     print()
     
@@ -249,18 +246,9 @@ def test_dynamic_challenge_missing_fields():
     }
     
     # Add dynamic scoring fields if type is 'dynamic'
-    if settings_config.get('type') == 'dynamic' and challenge_yml:
-        if 'initial' in challenge_yml:
-            ctfd_challenge['initial'] = challenge_yml['initial']
-        if 'minimum' in challenge_yml:
-            ctfd_challenge['minimum'] = challenge_yml['minimum']
-        if 'decay' in challenge_yml:
-            ctfd_challenge['decay'] = challenge_yml['decay']
-        if 'function' in challenge_yml:
-            ctfd_challenge['function'] = challenge_yml['function']
+    add_dynamic_fields_to_challenge(ctfd_challenge, settings_config, challenge_yml)
     
     print("Built challenge data for CTFd:")
-    import json
     print(json.dumps(ctfd_challenge, indent=2))
     print()
     
