@@ -558,16 +558,18 @@ def push_to_ctfd(challenge_id):
             
             logger.info(f"Challenge {challenge_id} successfully pushed to CTFd with ID {ctfd_id}")
             
-            # Build detailed message
+            # Build detailed message - only include fields that were actually pushed with content
             pushed_fields = []
-            if fields_config.get('description', True):
+            if fields_config.get('description', True) and ctfd_challenge.get('description'):
                 pushed_fields.append('description')
             if fields_config.get('flag', True) and flag_content:
                 pushed_fields.append('flag')
-            if fields_config.get('connection_info', True) and 'connection_info' in ctfd_challenge:
+            if fields_config.get('connection_info', True) and ctfd_challenge.get('connection_info'):
                 pushed_fields.append('connection info')
-            if fields_config.get('attribution', True) and 'attribution' in ctfd_challenge:
+            if fields_config.get('attribution', True) and ctfd_challenge.get('attribution'):
                 pushed_fields.append('attribution')
+            if fields_config.get('requirements', False) and ctfd_challenge.get('requirements'):
+                pushed_fields.append('requirements')
             
             message = f'Challenge pushed to CTFd successfully with state: {settings_config.get("state", "hidden")}'
             if pushed_fields:

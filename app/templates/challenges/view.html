@@ -575,16 +575,20 @@ function showPushConfigModal() {
                 }
             }
             
-            // Apply settings
+            // Apply settings with consistent null safety checks
             if (defaults.settings) {
-                if (defaults.settings.type) {
-                    document.getElementById('setting_type').value = defaults.settings.type;
+                const typeEl = document.getElementById('setting_type');
+                const stateEl = document.getElementById('setting_state');
+                const maxAttemptsEl = document.getElementById('setting_max_attempts');
+                
+                if (typeEl && defaults.settings.type) {
+                    typeEl.value = defaults.settings.type;
                 }
-                if (defaults.settings.state) {
-                    document.getElementById('setting_state').value = defaults.settings.state;
+                if (stateEl && defaults.settings.state) {
+                    stateEl.value = defaults.settings.state;
                 }
-                if (defaults.settings.max_attempts !== undefined) {
-                    document.getElementById('setting_max_attempts').value = defaults.settings.max_attempts;
+                if (maxAttemptsEl && defaults.settings.max_attempts !== undefined && defaults.settings.max_attempts !== null) {
+                    maxAttemptsEl.value = defaults.settings.max_attempts;
                 }
             }
         } catch (e) {
@@ -596,6 +600,21 @@ function showPushConfigModal() {
 }
 
 async function pushToCTFd(id) {
+    // Validate all required DOM elements exist
+    const requiredElements = [
+        'field_description', 'field_flag', 'field_connection_info',
+        'field_attribution', 'field_requirements', 'setting_type',
+        'setting_state', 'setting_max_attempts', 'save_as_default'
+    ];
+    
+    for (const elemId of requiredElements) {
+        if (!document.getElementById(elemId)) {
+            console.error(`Required element '${elemId}' not found`);
+            alert('Configuration error: Please refresh the page and try again.');
+            return;
+        }
+    }
+    
     // Gather configuration from modal
     const config = {
         fields: {
@@ -609,19 +628,23 @@ async function pushToCTFd(id) {
             requirements: document.getElementById('field_requirements').checked
         },
         settings: {
-            type: document.getElementById('setting_type').value,
-            state: document.getElementById('setting_state').value,
-            max_attempts: parseInt(document.getElementById('setting_max_attempts').value) || 0
+            type: document.getElementById('setting_type').value || 'standard',
+            state: document.getElementById('setting_state').value || 'hidden',
+            max_attempts: parseInt(document.getElementById('setting_max_attempts').value, 10) || 0
         }
     };
     
     // Save as default if checkbox is checked
-    if (document.getElementById('save_as_default').checked) {
+    const saveDefaultCheckbox = document.getElementById('save_as_default');
+    if (saveDefaultCheckbox && saveDefaultCheckbox.checked) {
         localStorage.setItem('ctfd_push_defaults', JSON.stringify(config));
     }
     
     // Close modal
-    document.getElementById('pushConfigModal').close();
+    const modal = document.getElementById('pushConfigModal');
+    if (modal) {
+        modal.close();
+    }
     
     try {
         const response = await fetch(`/challenges/${id}/push-to-ctfd`, {
