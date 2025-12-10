@@ -45,6 +45,20 @@
         </ul>
     </div>
 
+    <!-- Conflict Warning -->
+    {% if challenge.has_conflicts %}
+    <div class="alert alert-warning shadow-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <div>
+            <h3 class="font-bold">Sync Conflict Detected!</h3>
+            <div class="text-sm">This challenge has been edited in the portal and also updated in GitHub. Please resolve the conflicts.</div>
+        </div>
+        <button onclick="showConflictResolutionModal()" class="btn btn-sm btn-warning">Resolve Conflicts</button>
+    </div>
+    {% endif %}
+
     <!-- Challenge Header -->
     <div class="card bg-base-100 shadow-xl">
         <div class="card-body">
@@ -114,6 +128,15 @@
                         <span class="sm:hidden">Pushed</span>
                     </span>
                     {% endif %}
+                    
+                    <!-- Edit Challenge Button -->
+                    <button onclick="showEditModal()" class="btn btn-outline btn-sm sm:btn-md">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 sm:h-5 sm:w-5 sm:mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <span class="hidden sm:inline">Edit Challenge</span>
+                        <span class="sm:hidden">Edit</span>
+                    </button>
                 </div>
             </div>
         </div>
@@ -519,6 +542,95 @@
         </div>
     </div>
 </dialog>
+
+<!-- Edit Challenge Modal -->
+<dialog id="editChallengeModal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <h3 class="font-bold text-lg mb-4">Edit Challenge</h3>
+        <form id="editChallengeForm" class="space-y-4">
+            <div class="form-control">
+                <label class="label"><span class="label-text">Name</span></label>
+                <input type="text" id="editName" class="input input-bordered" value="{{ challenge.name }}" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Category</span></label>
+                    <input type="text" id="editCategory" class="input input-bordered" value="{{ challenge.category }}" required>
+                </div>
+                <div class="form-control">
+                    <label class="label"><span class="label-text">Difficulty</span></label>
+                    <select id="editDifficulty" class="select select-bordered">
+                        <option value="Easy" {% if challenge.difficulty == 'Easy' %}selected{% endif %}>Easy</option>
+                        <option value="Medium" {% if challenge.difficulty == 'Medium' %}selected{% endif %}>Medium</option>
+                        <option value="Hard" {% if challenge.difficulty == 'Hard' %}selected{% endif %}>Hard</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Points</span></label>
+                <input type="number" id="editPoints" class="input input-bordered" value="{{ challenge.points or 100 }}" required>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Description</span></label>
+                <textarea id="editDescription" class="textarea textarea-bordered h-32">{{ challenge.description or '' }}</textarea>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Flag</span></label>
+                <input type="text" id="editFlag" class="input input-bordered" value="{{ challenge.flag or '' }}">
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Hint (Optional)</span></label>
+                <textarea id="editHint" class="textarea textarea-bordered h-24">{{ challenge.hint or '' }}</textarea>
+            </div>
+            <div class="form-control">
+                <label class="label"><span class="label-text">Solution (Optional)</span></label>
+                <textarea id="editSolution" class="textarea textarea-bordered h-24">{{ challenge.solution or '' }}</textarea>
+            </div>
+        </form>
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn btn-ghost">Cancel</button>
+            </form>
+            <button onclick="saveChallenge()" class="btn btn-primary">Save Changes</button>
+        </div>
+    </div>
+</dialog>
+
+<!-- Conflict Resolution Modal -->
+<dialog id="conflictResolutionModal" class="modal">
+    <div class="modal-box max-w-4xl">
+        <h3 class="font-bold text-lg mb-4">Resolve Sync Conflicts</h3>
+        <p class="text-sm text-base-content/70 mb-6">
+            This challenge has been edited both in the portal and in GitHub. 
+            Please choose which version to keep for each conflicting field.
+        </p>
+        
+        <div id="conflictFields" class="space-y-6">
+            <!-- Conflict fields will be populated by JavaScript -->
+        </div>
+        
+        <div class="divider"></div>
+        
+        <div class="flex gap-4 justify-between items-center">
+            <div class="text-sm text-base-content/70">Quick actions:</div>
+            <div class="flex gap-2">
+                <button onclick="resolveAllConflicts('keep_portal')" class="btn btn-sm btn-info">
+                    Keep All Portal Values
+                </button>
+                <button onclick="resolveAllConflicts('use_github')" class="btn btn-sm btn-success">
+                    Use All GitHub Values
+                </button>
+            </div>
+        </div>
+        
+        <div class="modal-action">
+            <form method="dialog">
+                <button class="btn btn-ghost">Cancel</button>
+            </form>
+            <button onclick="resolveMergeConflicts()" class="btn btn-primary">Apply Selected Resolutions</button>
+        </div>
+    </div>
+</dialog>
 {% endblock %}
 
 {% block extra_js %}
@@ -834,6 +946,186 @@ async function assignRound(challengeId) {
         }
     } catch (error) {
         alert('Error assigning round: ' + error.message);
+    }
+}
+
+// Edit Challenge Functions
+function showEditModal() {
+    const modal = document.getElementById('editChallengeModal');
+    if (modal) {
+        modal.showModal();
+    }
+}
+
+async function saveChallenge() {
+    const challengeId = {{ challenge.id }};
+    const updateData = {
+        name: document.getElementById('editName').value,
+        category: document.getElementById('editCategory').value,
+        difficulty: document.getElementById('editDifficulty').value,
+        points: parseInt(document.getElementById('editPoints').value, 10),
+        description: document.getElementById('editDescription').value,
+        flag: document.getElementById('editFlag').value,
+        hint: document.getElementById('editHint').value,
+        solution: document.getElementById('editSolution').value
+    };
+    
+    try {
+        const response = await fetch(`/challenges/${challengeId}/update`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Challenge updated successfully!');
+            // Close modal
+            const modal = document.getElementById('editChallengeModal');
+            if (modal) {
+                modal.close();
+            }
+            // Reload page to show updated data
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to update challenge'));
+        }
+    } catch (error) {
+        alert('Error updating challenge: ' + error.message);
+    }
+}
+
+// Conflict Resolution Functions
+function showConflictResolutionModal() {
+    const modal = document.getElementById('conflictResolutionModal');
+    const conflictingFields = {{ challenge.conflicting_fields | tojson | safe }};
+    
+    if (!conflictingFields || Object.keys(conflictingFields).length === 0) {
+        alert('No conflicts to resolve.');
+        return;
+    }
+    
+    // Build conflict resolution UI
+    const container = document.getElementById('conflictFields');
+    container.innerHTML = '';
+    
+    for (const [field, conflict] of Object.entries(conflictingFields)) {
+        const fieldDiv = document.createElement('div');
+        fieldDiv.className = 'card bg-base-200 shadow-sm';
+        fieldDiv.innerHTML = `
+            <div class="card-body">
+                <h4 class="card-title text-base capitalize">${field}</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div class="form-control">
+                        <label class="label cursor-pointer justify-start gap-3">
+                            <input type="radio" name="conflict_${field}" value="portal" class="radio radio-info" checked>
+                            <div class="flex-1">
+                                <span class="label-text font-semibold">Portal Version</span>
+                                <div class="text-sm text-base-content/70 mt-1 p-2 bg-base-100 rounded">
+                                    ${conflict.portal_value || '(empty)'}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                    <div class="form-control">
+                        <label class="label cursor-pointer justify-start gap-3">
+                            <input type="radio" name="conflict_${field}" value="github" class="radio radio-success">
+                            <div class="flex-1">
+                                <span class="label-text font-semibold">GitHub Version</span>
+                                <div class="text-sm text-base-content/70 mt-1 p-2 bg-base-100 rounded">
+                                    ${conflict.github_value || '(empty)'}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        `;
+        container.appendChild(fieldDiv);
+    }
+    
+    if (modal) {
+        modal.showModal();
+    }
+}
+
+async function resolveAllConflicts(resolution_type) {
+    const challengeId = {{ challenge.id }};
+    
+    if (!confirm(`Are you sure you want to ${resolution_type === 'keep_portal' ? 'keep all portal values' : 'use all GitHub values'}?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/challenges/${challengeId}/resolve-conflicts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ resolution_type })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Conflicts resolved successfully!');
+            // Close modal and reload
+            const modal = document.getElementById('conflictResolutionModal');
+            if (modal) {
+                modal.close();
+            }
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to resolve conflicts'));
+        }
+    } catch (error) {
+        alert('Error resolving conflicts: ' + error.message);
+    }
+}
+
+async function resolveMergeConflicts() {
+    const challengeId = {{ challenge.id }};
+    const conflictingFields = {{ challenge.conflicting_fields | tojson | safe }};
+    
+    // Gather user's choices for each field
+    const field_resolutions = {};
+    for (const field of Object.keys(conflictingFields)) {
+        const selected = document.querySelector(`input[name="conflict_${field}"]:checked`);
+        if (selected) {
+            field_resolutions[field] = selected.value;
+        }
+    }
+    
+    try {
+        const response = await fetch(`/api/challenges/${challengeId}/resolve-conflicts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+                resolution_type: 'merge',
+                field_resolutions 
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('Conflicts resolved successfully!');
+            // Close modal and reload
+            const modal = document.getElementById('conflictResolutionModal');
+            if (modal) {
+                modal.close();
+            }
+            window.location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to resolve conflicts'));
+        }
+    } catch (error) {
+        alert('Error resolving conflicts: ' + error.message);
     }
 }
 </script>

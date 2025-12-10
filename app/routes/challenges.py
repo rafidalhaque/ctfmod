@@ -656,3 +656,61 @@ def assign_round(challenge_id):
             return jsonify({'error': str(e)}), 500
     
     return jsonify({'error': 'Database not configured'}), 500
+
+
+@challenges_bp.route('/challenges/<int:challenge_id>/update', methods=['POST'])
+@login_required
+def update_challenge(challenge_id):
+    """Update challenge details from the portal.
+    
+    This allows manual editing of challenges. When a challenge is edited,
+    we mark it as having local edits so that sync conflicts can be detected.
+    """
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        # Get the update data from request
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Verify challenge exists
+        existing = supabase.table('challenges').select('*').eq('id', challenge_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Challenge not found'}), 404
+        
+        # Build update object with allowed fields
+        update_data = {}
+        allowed_fields = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
+        
+        for field in allowed_fields:
+            if field in data:
+                update_data[field] = data[field]
+        
+        if not update_data:
+            return jsonify({'error': 'No valid fields to update'}), 400
+        
+        # Mark that this challenge has been manually edited
+        # Store the original GitHub data for conflict detection
+        original_data = existing.data[0]
+        if 'github_data_snapshot' not in original_data or original_data['github_data_snapshot'] is None:
+            # First edit - save current state as original GitHub snapshot
+            github_snapshot = {k: original_data.get(k) for k in allowed_fields if k in original_data}
+            update_data['github_data_snapshot'] = github_snapshot
+        
+        update_data['manually_edited'] = True
+        
+        # Update the challenge
+        supabase.table('challenges').update(update_data).eq('id', challenge_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Challenge updated successfully'
+        })
+        
+    except Exception as e:
+        logger.exception(f"Error updating challenge {challenge_id}")
+        return jsonify({'error': str(e)}), 500
