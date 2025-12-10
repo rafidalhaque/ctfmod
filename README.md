@@ -277,10 +277,13 @@ When pushing a challenge to CTFd, you can configure:
 
 **Challenge Settings:**
 - **Type**: Standard or Dynamic scoring
+  - **Dynamic**: Automatically includes dynamic scoring fields from challenge.yml (initial, minimum, decay, function)
 - **State**: Hidden (default) or Visible - Hidden challenges won't appear to players until made visible
 - **Max Attempts**: 0 for unlimited, or set a specific number
 
 **Save as Default**: Check this option to remember your preferences for future challenges. Settings are stored in your browser's localStorage.
+
+**Note**: For dynamic challenges, ensure your challenge.yml includes the required dynamic scoring fields (`initial`, `minimum`, `decay`, `function`) for proper configuration.
 
 ### Email Template Variables
 

@@ -534,6 +534,17 @@ def push_to_ctfd(challenge_id):
         if challenge_yml and 'extra' in challenge_yml:
             ctfd_challenge['extra'] = challenge_yml['extra']
         
+        # Add dynamic scoring fields if type is 'dynamic' and available from challenge.yml
+        if settings_config.get('type') == 'dynamic' and challenge_yml:
+            if 'initial' in challenge_yml:
+                ctfd_challenge['initial'] = challenge_yml['initial']
+            if 'minimum' in challenge_yml:
+                ctfd_challenge['minimum'] = challenge_yml['minimum']
+            if 'decay' in challenge_yml:
+                ctfd_challenge['decay'] = challenge_yml['decay']
+            if 'function' in challenge_yml:
+                ctfd_challenge['function'] = challenge_yml['function']
+        
         # Determine if flag should be pushed
         flag_content = None
         if fields_config.get('flag', True):
