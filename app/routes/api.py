@@ -12,6 +12,9 @@ api_bp = Blueprint('api', __name__)
 # Maximum YAML content size (100KB) to prevent DoS
 MAX_YAML_SIZE = 100 * 1024
 
+# Fields that can be edited in the portal (shared with challenges module)
+EDITABLE_CHALLENGE_FIELDS = ['name', 'category', 'difficulty', 'description', 'points', 'flag', 'hint', 'solution']
+
 
 def safe_int(value, default=None):
     """Attempt to convert value to int, returning default if conversion fails.
@@ -230,6 +233,45 @@ def delete_challenge(challenge_id):
         return jsonify({'error': str(e)}), 500
 
 
+def detect_conflicts(existing_challenge, github_data):
+    """Detect conflicts between portal-edited challenge and GitHub data.
+    
+    Args:
+        existing_challenge: Current challenge data from database
+        github_data: New challenge data from GitHub YAML
+        
+    Returns:
+        dict with conflicting fields or None if no conflicts
+    """
+    # Get the original GitHub snapshot (before portal edits)
+    github_snapshot = existing_challenge.get('github_data_snapshot', {})
+    
+    conflicts = {}
+    
+    for field in EDITABLE_CHALLENGE_FIELDS:
+        current_value = existing_challenge.get(field)
+        github_value = github_data.get(field)
+        original_value = github_snapshot.get(field) if github_snapshot else None
+        
+        # Skip if both are None (but not empty strings or 0, which are valid)
+        if current_value is None and github_value is None:
+            continue
+        
+        # Conflict detected if:
+        # 1. Current value differs from GitHub value
+        # 2. GitHub value has changed from the original snapshot
+        if current_value != github_value:
+            # Check if GitHub data actually changed
+            if github_value != original_value:
+                conflicts[field] = {
+                    'portal_value': current_value,
+                    'github_value': github_value,
+                    'original_value': original_value
+                }
+    
+    return conflicts if conflicts else None
+
+
 @api_bp.route('/sync-github', methods=['POST'])
 @login_required
 def sync_github():
@@ -334,16 +376,38 @@ def sync_github():
                     'setter': pr['user']['login']
                 }
             
-            # Check if challenge already exists
-            existing = supabase.table('challenges').select('id').eq('pr_number', pr_number).execute()
+            # Check if challenge already exists - select specific fields needed for conflict detection
+            fields_to_select = 'id, manually_edited, github_data_snapshot, ' + ', '.join(EDITABLE_CHALLENGE_FIELDS)
+            existing = supabase.table('challenges').select(fields_to_select).eq('pr_number', pr_number).execute()
             
             if existing.data:
                 # Update existing challenge with new data from challenge.yml
                 challenge_id = existing.data[0]['id']
-                # Remove status and setter from update to preserve existing values
-                update_data = {k: v for k, v in challenge_data.items() if k not in ['status', 'setter', 'pr_number', 'branch']}
-                supabase.table('challenges').update(update_data).eq('id', challenge_id).execute()
-                updated_count += 1
+                existing_challenge = existing.data[0]
+                
+                # Check if challenge was manually edited in portal
+                if existing_challenge.get('manually_edited'):
+                    # Detect conflicts between GitHub data and portal edits
+                    conflicts = detect_conflicts(existing_challenge, challenge_data)
+                    
+                    if conflicts:
+                        # Mark challenge as having conflicts
+                        conflict_update = {
+                            'has_conflicts': True,
+                            'conflicting_fields': conflicts
+                        }
+                        supabase.table('challenges').update(conflict_update).eq('id', challenge_id).execute()
+                        updated_count += 1
+                    else:
+                        # No conflicts, safe to update
+                        update_data = {k: v for k, v in challenge_data.items() if k not in ['status', 'setter', 'pr_number', 'branch']}
+                        supabase.table('challenges').update(update_data).eq('id', challenge_id).execute()
+                        updated_count += 1
+                else:
+                    # No manual edits, safe to update from GitHub
+                    update_data = {k: v for k, v in challenge_data.items() if k not in ['status', 'setter', 'pr_number', 'branch']}
+                    supabase.table('challenges').update(update_data).eq('id', challenge_id).execute()
+                    updated_count += 1
             else:
                 # Insert new challenge
                 supabase.table('challenges').insert(challenge_data).execute()
@@ -701,6 +765,93 @@ def get_public_stats():
         return jsonify({
             'success': True,
             'data': stats
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@api_bp.route('/challenges/<int:challenge_id>/resolve-conflicts', methods=['POST'])
+@login_required
+def resolve_conflicts(challenge_id):
+    """Resolve sync conflicts for a challenge.
+    
+    Accepts a resolution strategy:
+    - 'keep_portal': Keep all portal values
+    - 'use_github': Use all GitHub values
+    - 'merge': Use specific values for each field (requires field_resolutions)
+    """
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        return jsonify({'error': 'Database not configured'}), 500
+    
+    try:
+        data = request.get_json()
+        resolution_type = data.get('resolution_type')
+        field_resolutions = data.get('field_resolutions', {})
+        
+        if not resolution_type:
+            return jsonify({'error': 'Resolution type is required'}), 400
+        
+        # Get challenge with conflicts
+        existing = supabase.table('challenges').select('*').eq('id', challenge_id).execute()
+        if not existing.data:
+            return jsonify({'error': 'Challenge not found'}), 404
+        
+        challenge = existing.data[0]
+        conflicting_fields = challenge.get('conflicting_fields', {})
+        
+        if not conflicting_fields:
+            return jsonify({'error': 'No conflicts to resolve'}), 400
+        
+        # Build update data based on resolution strategy
+        update_data = {}
+        
+        if resolution_type == 'keep_portal':
+            # Keep all current portal values, just clear the conflict flags
+            update_data = {
+                'has_conflicts': False,
+                'conflicting_fields': None,
+                'github_data_snapshot': None,  # Reset snapshot
+                'manually_edited': True  # Keep this flag
+            }
+        elif resolution_type == 'use_github':
+            # Use all GitHub values
+            for field, conflict_data in conflicting_fields.items():
+                update_data[field] = conflict_data['github_value']
+            update_data.update({
+                'has_conflicts': False,
+                'conflicting_fields': None,
+                'github_data_snapshot': None,
+                'manually_edited': False  # Reset since we're using GitHub values
+            })
+        elif resolution_type == 'merge':
+            # Use field-specific resolutions
+            if not field_resolutions:
+                return jsonify({'error': 'Field resolutions required for merge strategy'}), 400
+            
+            for field, conflict_data in conflicting_fields.items():
+                chosen_source = field_resolutions.get(field, 'portal')  # Default to portal
+                if chosen_source == 'github':
+                    update_data[field] = conflict_data['github_value']
+                # If 'portal', we keep current value (no update needed)
+            
+            update_data.update({
+                'has_conflicts': False,
+                'conflicting_fields': None,
+                'github_data_snapshot': None,
+                'manually_edited': True  # Keep flag since we're keeping some portal values
+            })
+        else:
+            return jsonify({'error': 'Invalid resolution type'}), 400
+        
+        # Apply the resolution
+        supabase.table('challenges').update(update_data).eq('id', challenge_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Conflicts resolved successfully'
         })
         
     except Exception as e:
