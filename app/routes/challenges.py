@@ -428,6 +428,7 @@ def push_to_ctfd(challenge_id):
         config = request.get_json() or {}
         fields_config = config.get('fields', {})
         settings_config = config.get('settings', {})
+        dynamic_scoring_config = config.get('dynamic_scoring', {})
         
         # Set defaults for configuration if not provided
         if not fields_config:
@@ -534,16 +535,32 @@ def push_to_ctfd(challenge_id):
         if challenge_yml and 'extra' in challenge_yml:
             ctfd_challenge['extra'] = challenge_yml['extra']
         
-        # Add dynamic scoring fields if type is 'dynamic' and available from challenge.yml
-        if settings_config.get('type') == 'dynamic' and challenge_yml:
-            if 'initial' in challenge_yml:
+        # Add dynamic scoring fields if type is 'dynamic'
+        # Prefer values from challenge.yml, fall back to values from request config
+        if settings_config.get('type') == 'dynamic':
+            # Initial value
+            if challenge_yml and 'initial' in challenge_yml:
                 ctfd_challenge['initial'] = challenge_yml['initial']
-            if 'minimum' in challenge_yml:
+            elif dynamic_scoring_config.get('initial') is not None:
+                ctfd_challenge['initial'] = dynamic_scoring_config['initial']
+            
+            # Minimum value
+            if challenge_yml and 'minimum' in challenge_yml:
                 ctfd_challenge['minimum'] = challenge_yml['minimum']
-            if 'decay' in challenge_yml:
+            elif dynamic_scoring_config.get('minimum') is not None:
+                ctfd_challenge['minimum'] = dynamic_scoring_config['minimum']
+            
+            # Decay value
+            if challenge_yml and 'decay' in challenge_yml:
                 ctfd_challenge['decay'] = challenge_yml['decay']
-            if 'function' in challenge_yml:
+            elif dynamic_scoring_config.get('decay') is not None:
+                ctfd_challenge['decay'] = dynamic_scoring_config['decay']
+            
+            # Function type
+            if challenge_yml and 'function' in challenge_yml:
                 ctfd_challenge['function'] = challenge_yml['function']
+            elif dynamic_scoring_config.get('function'):
+                ctfd_challenge['function'] = dynamic_scoring_config['function']
         
         # Determine if flag should be pushed
         flag_content = None

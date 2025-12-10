@@ -277,13 +277,19 @@ When pushing a challenge to CTFd, you can configure:
 
 **Challenge Settings:**
 - **Type**: Standard or Dynamic scoring
-  - **Dynamic**: Automatically includes dynamic scoring fields from challenge.yml (initial, minimum, decay, function)
+  - **Dynamic**: When selected, the portal will prompt for dynamic scoring parameters (initial, minimum, decay, function) if they are not present in challenge.yml
+  - Default values: initial=500, minimum=100, decay=50, function=logarithmic
+  - Values from challenge.yml take precedence over portal-provided values
 - **State**: Hidden (default) or Visible - Hidden challenges won't appear to players until made visible
 - **Max Attempts**: 0 for unlimited, or set a specific number
 
-**Save as Default**: Check this option to remember your preferences for future challenges. Settings are stored in your browser's localStorage.
+**Dynamic Scoring Parameters** (shown when Type is Dynamic):
+- **Initial Value**: Starting point value (default: 500)
+- **Minimum Value**: Minimum point value after decay (default: 100)
+- **Decay**: Point decay rate (default: 50)
+- **Function**: Scoring function type - Logarithmic or Linear (default: logarithmic)
 
-**Note**: For dynamic challenges, ensure your challenge.yml includes the required dynamic scoring fields (`initial`, `minimum`, `decay`, `function`) for proper configuration.
+**Save as Default**: Check this option to remember your preferences for future challenges. Settings are stored in your browser's localStorage.
 
 ### Email Template Variables
 
