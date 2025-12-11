@@ -115,11 +115,13 @@
                                 <span class="text-base-content/50">Institution:</span>
                                 <div class="truncate">{{ participant.institution or '-' }}</div>
                             </div>
-                            {% if participant.credentials %}
+                            {% if participant.credentials and participant.credentials.ctfd_user_id %}
                             <div>
-                                <span class="text-base-content/50">Username:</span>
-                                <div><code class="text-xs">{{ participant.credentials.ctfd_username }}</code></div>
+                                <span class="text-base-content/50">CTFd ID:</span>
+                                <div><span class="badge badge-success badge-xs">{{ participant.credentials.ctfd_user_id }}</span></div>
                             </div>
+                            {% endif %}
+                            {% if participant.credentials %}
                             <div>
                                 <span class="text-base-content/50">Password:</span>
                                 <div class="flex items-center gap-1">
@@ -148,7 +150,7 @@
                             <th>Phone</th>
                             <th>Gender</th>
                             <th>Institution</th>
-                            <th>CTFd Username</th>
+                            <th>CTFd ID</th>
                             <th>CTFd Password</th>
                             <th>Actions</th>
                         </tr>
@@ -194,8 +196,8 @@
                                 <span class="text-sm">{{ participant.institution or '-' }}</span>
                             </td>
                             <td>
-                                {% if participant.credentials %}
-                                <code class="bg-base-200 px-2 py-1 rounded text-sm">{{ participant.credentials.ctfd_username }}</code>
+                                {% if participant.credentials and participant.credentials.ctfd_user_id %}
+                                <span class="badge badge-success">{{ participant.credentials.ctfd_user_id }}</span>
                                 {% else %}
                                 <span class="text-base-content/50">-</span>
                                 {% endif %}
