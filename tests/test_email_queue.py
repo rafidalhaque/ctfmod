@@ -3,7 +3,6 @@ Simple test to verify background email queue works correctly.
 """
 import sys
 import os
-import time
 import uuid
 from datetime import datetime
 

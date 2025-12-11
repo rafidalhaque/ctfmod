@@ -224,15 +224,15 @@ class EmailQueue:
             
         except smtplib.SMTPAuthenticationError as e:
             task.status = 'failed'
-            task.error_message = 'SMTP authentication failed'
+            task.error_message = f'SMTP authentication failed: {str(e)}'
             logger.error(f"Task {task.task_id} failed: {task.error_message}")
         except smtplib.SMTPConnectError as e:
             task.status = 'failed'
-            task.error_message = 'Failed to connect to SMTP server'
+            task.error_message = f'Failed to connect to SMTP server: {str(e)}'
             logger.error(f"Task {task.task_id} failed: {task.error_message}")
         except Exception as e:
             task.status = 'failed'
-            task.error_message = str(e)
+            task.error_message = f'{type(e).__name__}: {str(e)}'
             logger.error(f"Task {task.task_id} failed: {task.error_message}", exc_info=True)
         finally:
             if server:

@@ -1231,13 +1231,17 @@ def bulk_send_email():
         include_team_captains = data.get('include_team_captains', False)
         attachment_ids = data.get('attachments', [])  # List of attachment IDs
         status_filter = data.get('status_filter', [])  # List of statuses to filter by (empty = all)
-        delay_seconds = int(data.get('delay_seconds', 0))  # Delay between emails in seconds
+        
+        # Validate and parse delay_seconds
+        try:
+            delay_seconds = int(data.get('delay_seconds', 0))
+            if delay_seconds < 0:
+                return jsonify({'error': 'Delay seconds must be non-negative'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid delay_seconds value. Must be a non-negative integer.'}), 400
         
         if not template_id:
             return jsonify({'error': 'Template ID is required'}), 400
-        
-        if delay_seconds < 0:
-            return jsonify({'error': 'Delay seconds must be non-negative'}), 400
         
         # Fetch the template
         template_response = supabase.table('email_templates').select('*').eq('id', template_id).execute()
