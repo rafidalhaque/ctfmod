@@ -350,7 +350,11 @@ class EmailQueue:
         )
     
     def _is_allowed_image(self, filename: str) -> bool:
-        """Check if file is an allowed image type."""
+        """Check if file is an allowed image type.
+        
+        Note: This duplicates allowed_image() from settings.py to keep
+        EmailQueue independent of Flask context for background processing.
+        """
         allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
         return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
 

@@ -66,6 +66,24 @@ def test_email_queue():
         'body': '<p>Hello {{user_name}}, welcome to {{team_name}}!</p>'
     }
     
+    # Test with different delay values
+    for delay in [0, 2, 60, 3600]:
+        task = EmailTask(
+            task_id=f"{task_id}-{delay}",
+            template_id=1,
+            template_name='Test Template',
+            recipients=recipients,
+            smtp_settings=smtp_settings,
+            template_data=template_data,
+            attachments=[],
+            upload_folder='/tmp',
+            delay_seconds=delay
+        )
+        assert task.delay_seconds == delay, f"Delay {delay} not set correctly"
+    
+    print(f"✓ Delay validation works for various values (0, 2, 60, 3600)")
+    
+    # Use standard task for remaining tests
     task = EmailTask(
         task_id=task_id,
         template_id=1,

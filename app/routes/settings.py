@@ -1237,6 +1237,8 @@ def bulk_send_email():
             delay_seconds = int(data.get('delay_seconds', 0))
             if delay_seconds < 0:
                 return jsonify({'error': 'Delay seconds must be non-negative'}), 400
+            if delay_seconds > 3600:
+                return jsonify({'error': 'Delay seconds cannot exceed 3600 (1 hour)'}), 400
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid delay_seconds value. Must be a non-negative integer.'}), 400
         
