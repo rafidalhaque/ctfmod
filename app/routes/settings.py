@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.ctfd_client import CTFdAPIClient, CTFdAPIException
 from app.utils import get_ctfd_config
+from app.email_queue import email_queue, EmailTask
 import secrets
 import os
 import uuid
@@ -1218,15 +1219,7 @@ def serve_email_attachment(filename):
 @settings_bp.route('/settings/email-templates/bulk-send', methods=['POST'])
 @login_required
 def bulk_send_email():
-    """Send bulk emails to participants using a template, optionally filtered by team status."""
-    import smtplib
-    from email.mime.text import MIMEText
-    from email.mime.multipart import MIMEMultipart
-    from email.mime.base import MIMEBase
-    from email.mime.image import MIMEImage
-    from email import encoders
-    import re
-    
+    """Send bulk emails to participants using a template via background task queue."""
     supabase = get_supabase_client()
     
     if not supabase:
@@ -1238,6 +1231,16 @@ def bulk_send_email():
         include_team_captains = data.get('include_team_captains', False)
         attachment_ids = data.get('attachments', [])  # List of attachment IDs
         status_filter = data.get('status_filter', [])  # List of statuses to filter by (empty = all)
+        
+        # Validate and parse delay_seconds
+        try:
+            delay_seconds = int(data.get('delay_seconds', 0))
+            if delay_seconds < 0:
+                return jsonify({'error': 'Delay seconds must be non-negative'}), 400
+            if delay_seconds > 3600:
+                return jsonify({'error': 'Delay seconds cannot exceed 3600 (1 hour)'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid delay_seconds value. Must be a non-negative integer.'}), 400
         
         if not template_id:
             return jsonify({'error': 'Template ID is required'}), 400
@@ -1365,178 +1368,71 @@ def bulk_send_email():
             attachments_response = supabase.table('email_attachments').select('*').in_('id', attachment_ids).execute()
             attachments = attachments_response.data if attachments_response.data else []
         
-        # Connect to SMTP server
-        server = None
-        try:
-            if use_ssl:
-                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=30)
-            else:
-                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
-                if use_tls:
-                    server.starttls()
-            
-            if smtp_username and smtp_password:
-                server.login(smtp_username, smtp_password)
-            
-            sent_count = 0
-            failed_count = 0
-            audit_logs = []
-            
-            for recipient in recipients:
-                error_message = None
-                try:
-                    # Replace variables in template
-                    subject = template['subject']
-                    body = template['body']
-                    
-                    variables = {
-                        'user_name': recipient['user_name'],
-                        'user_email': recipient['user_email'],
-                        'user_ctfd_username': recipient['user_ctfd_username'],
-                        'user_ctfd_password': recipient['user_ctfd_password'],
-                        'team_name': recipient['team_name'],
-                        'registration_id': recipient.get('registration_id', ''),
-                        'team_ctfd_username': recipient['team_ctfd_username'],
-                        'team_ctfd_password': recipient['team_ctfd_password'],
-                        'event_name': event_name,
-                        'site_name': site_name,
-                        'date': datetime.now().strftime('%Y-%m-%d'),
-                        'time': datetime.now().strftime('%H:%M')
-                    }
-                    
-                    for var_name, var_value in variables.items():
-                        subject = subject.replace('{{' + var_name + '}}', str(var_value or ''))
-                        body = body.replace('{{' + var_name + '}}', str(var_value or ''))
-                    
-                    # Create message with mixed type to support both alternative content and attachments
-                    msg = MIMEMultipart('mixed')
-                    msg['Subject'] = subject
-                    msg['From'] = f'{sender_name} <{sender_email}>'
-                    msg['To'] = recipient['email']
-                    
-                    # Create alternative part for text and HTML
-                    msg_alternative = MIMEMultipart('alternative')
-                    
-                    # Create related part for HTML with inline images
-                    msg_related = MIMEMultipart('related')
-                    
-                    # Plain text version - strip HTML tags
-                    text_content = body.replace('<br>', '\n').replace('<p>', '\n').replace('</p>', '\n')
-                    text_content = re.sub('<[^<]+?>', '', text_content)
-                    
-                    msg_alternative.attach(MIMEText(text_content, 'plain'))
-                    
-                    # Process inline images in body (replace image URLs with cid references)
-                    inline_images = []
-                    
-                    # Find and process inline images in the template body
-                    # Look for patterns like src="/uploads/email_attachments/..." or src="{{cid:filename}}"
-                    img_pattern = r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)([^"\']+)["\']'
-                    matches = re.findall(img_pattern, body)
-                    
-                    for i, match in enumerate(matches):
-                        filename = match.rstrip('}}')
-                        file_path = os.path.join(upload_folder, secure_filename(filename))
-                        
-                        if os.path.exists(file_path) and allowed_image(filename):
-                            cid = f'image{i}'
-                            # Replace the src with cid reference
-                            body = re.sub(
-                                r'src=["\'](?:/uploads/email_attachments/|\{\{cid:)' + re.escape(match) + r'["\']',
-                                f'src="cid:{cid}"',
-                                body
-                            )
-                            inline_images.append((file_path, cid, filename))
-                    
-                    # Attach HTML content
-                    msg_related.attach(MIMEText(body, 'html'))
-                    
-                    # Attach inline images
-                    for file_path, cid, filename in inline_images:
-                        with open(file_path, 'rb') as img_file:
-                            img_data = img_file.read()
-                            ext = filename.rsplit('.', 1)[1].lower()
-                            mime_subtype = 'jpeg' if ext == 'jpg' else ext
-                            img = MIMEImage(img_data, _subtype=mime_subtype)
-                            img.add_header('Content-ID', f'<{cid}>')
-                            img.add_header('Content-Disposition', 'inline', filename=filename)
-                            msg_related.attach(img)
-                    
-                    msg_alternative.attach(msg_related)
-                    msg.attach(msg_alternative)
-                    
-                    # Attach file attachments
-                    for attachment in attachments:
-                        file_path = os.path.join(upload_folder, attachment['stored_filename'])
-                        if os.path.exists(file_path):
-                            with open(file_path, 'rb') as f:
-                                part = MIMEBase('application', 'octet-stream')
-                                part.set_payload(f.read())
-                                encoders.encode_base64(part)
-                                part.add_header(
-                                    'Content-Disposition',
-                                    f'attachment; filename="{attachment["original_filename"]}"'
-                                )
-                                msg.attach(part)
-                    
-                    server.sendmail(sender_email, recipient['email'], msg.as_string())
-                    sent_count += 1
-                    
-                    # Log successful send
-                    audit_logs.append({
-                        'template_id': template_id,
-                        'template_name': template.get('name', ''),
-                        'recipient_email': recipient['email'],
-                        'recipient_name': recipient['user_name'],
-                        'team_id': recipient.get('team_db_id'),
-                        'team_name': recipient['team_name'],
-                        'status': 'sent',
-                        'error_message': None
-                    })
-                except Exception as e:
-                    failed_count += 1
-                    error_message = str(e)
-                    
-                    # Log failed send
-                    audit_logs.append({
-                        'template_id': template_id,
-                        'template_name': template.get('name', ''),
-                        'recipient_email': recipient['email'],
-                        'recipient_name': recipient['user_name'],
-                        'team_id': recipient.get('team_db_id'),
-                        'team_name': recipient['team_name'],
-                        'status': 'failed',
-                        'error_message': error_message
-                    })
-        finally:
-            if server:
-                try:
-                    server.quit()
-                except Exception:
-                    pass
+        # Prepare SMTP settings for the task
+        smtp_settings = {
+            'host': smtp_host,
+            'port': smtp_port,
+            'username': smtp_username,
+            'password': smtp_password,
+            'sender_email': sender_email,
+            'sender_name': sender_name,
+            'use_tls': use_tls,
+            'use_ssl': use_ssl,
+            'event_name': event_name,
+            'site_name': site_name
+        }
         
-        # Insert audit logs into database
-        if audit_logs:
-            try:
-                supabase.table('email_audit_logs').insert(audit_logs).execute()
-            except Exception as log_error:
-                # Log the error but don't fail the request
-                logger.warning("Failed to save email audit logs: %s", log_error)
+        # Prepare template data
+        template_data = {
+            'subject': template['subject'],
+            'body': template['body']
+        }
+        
+        # Create email task
+        task_id = str(uuid.uuid4())
+        task = EmailTask(
+            task_id=task_id,
+            template_id=template_id,
+            template_name=template.get('name', ''),
+            recipients=recipients,
+            smtp_settings=smtp_settings,
+            template_data=template_data,
+            attachments=attachments,
+            upload_folder=upload_folder,
+            delay_seconds=delay_seconds
+        )
+        
+        # Set supabase client for the queue
+        email_queue.set_supabase_client(supabase)
+        
+        # Add task to queue
+        email_queue.add_task(task)
         
         return jsonify({
             'success': True,
-            'sent': sent_count,
-            'failed': failed_count,
+            'task_id': task_id,
             'total': len(recipients),
-            'message': f'Sent {sent_count} emails, {failed_count} failed'
+            'delay_seconds': delay_seconds,
+            'message': f'Bulk email task queued with {len(recipients)} recipients. Delay: {delay_seconds}s between emails.'
         })
         
-    except smtplib.SMTPAuthenticationError:
-        return jsonify({'error': 'SMTP authentication failed. Check username and password.'}), 400
-    except smtplib.SMTPConnectError:
-        return jsonify({'error': 'Failed to connect to SMTP server. Check host and port.'}), 400
     except Exception as e:
-        return jsonify({'error': f'Failed to send bulk emails: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to queue bulk emails: {str(e)}'}), 500
+
+
+@settings_bp.route('/settings/email-tasks/<task_id>/status', methods=['GET'])
+@login_required
+def get_email_task_status(task_id):
+    """Get the status of a background email task."""
+    status = email_queue.get_task_status(task_id)
+    
+    if not status:
+        return jsonify({'error': 'Task not found'}), 404
+    
+    return jsonify({
+        'success': True,
+        'data': status
+    })
 
 
 @settings_bp.route('/settings/teams/<int:team_id>/send-email', methods=['POST'])
