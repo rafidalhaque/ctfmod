@@ -177,17 +177,6 @@
 
 {% block extra_js %}
 <script>
-        if (data.success) {
-            alert(data.message);
-            location.reload();
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-        }
-    } catch (error) {
-        alert('Error approving challenge: ' + error.message);
-    }
-}
-
 function showCreateChallengeModal() {
     document.getElementById('createChallengeModal').showModal();
 }
