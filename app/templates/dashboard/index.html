@@ -11,12 +11,36 @@
             <p class="text-base-content/70">Overview of your CTF challenges</p>
         </div>
         <div class="flex flex-col items-end gap-2">
-            <button onclick="exportToGitHub()" class="btn btn-primary" id="exportBtn">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                Export to GitHub
-            </button>
+            <div class="flex gap-2">
+                <button onclick="syncGitHub()" class="btn btn-primary" id="syncBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Sync from GitHub
+                </button>
+                <button onclick="exportToGitHub()" class="btn btn-success" id="exportBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    Export to GitHub
+                </button>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+                <p class="text-xs text-base-content/50" id="lastSyncTime">
+                    {% if settings.get('last_sync_time') %}
+                    Last synced: <span id="lastSyncTimeValue">{{ settings.get('last_sync_time') }}</span>
+                    {% else %}
+                    Never synced
+                    {% endif %}
+                </p>
+                {% if settings.get('auto_sync_interval', '0') != '0' %}
+                <p class="text-xs flex items-center gap-1" id="autoSyncStatus">
+                    <span class="inline-block w-2 h-2 rounded-full bg-success animate-pulse" id="autoSyncIndicator"></span>
+                    <span>Auto-sync: every {{ settings.get('auto_sync_interval') }} min</span>
+                    <span class="text-base-content/50" id="nextSyncCountdown"></span>
+                </p>
+                {% endif %}
+            </div>
         </div>
     </div>
 
@@ -388,6 +412,40 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+async function syncGitHub() {
+    const btn = document.getElementById('syncBtn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/sync-github', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update the last sync time display
+            const lastSyncTimeEl = document.getElementById('lastSyncTime');
+            if (lastSyncTimeEl && data.last_sync_time) {
+                lastSyncTimeEl.textContent = formatLastSyncTime(data.last_sync_time);
+            }
+            alert(data.message);
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        alert('Error syncing from GitHub: ' + error.message);
+    } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    }
+}
+
 async function exportToGitHub() {
     const btn = document.getElementById('exportBtn');
     btn.classList.add('loading');
@@ -500,5 +558,108 @@ function updateCountdowns() {
 // Update countdowns every second
 updateCountdowns();
 setInterval(updateCountdowns, 1000);
+
+// Auto-sync functionality
+const autoSyncInterval = {{ settings.get('auto_sync_interval', '0') | int }};
+let autoSyncTimer = null;
+let nextSyncTime = null;
+let countdownInterval = null;
+
+async function autoSyncGitHub() {
+    console.log('Auto-sync triggered at', new Date().toLocaleTimeString());
+    
+    // Update indicator to show syncing
+    const indicator = document.getElementById('autoSyncIndicator');
+    if (indicator) {
+        indicator.classList.remove('bg-success');
+        indicator.classList.add('bg-warning');
+    }
+    
+    try {
+        const response = await fetch('/api/sync-github', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            console.log('Auto-sync completed:', data.message);
+            // Update the last sync time display
+            const lastSyncTimeEl = document.getElementById('lastSyncTime');
+            if (lastSyncTimeEl && data.last_sync_time) {
+                lastSyncTimeEl.textContent = formatLastSyncTime(data.last_sync_time);
+            }
+            // Show a subtle notification instead of reloading
+            showAutoSyncNotification(data.message);
+            
+            // Reset the countdown for next sync
+            if (autoSyncInterval > 0) {
+                nextSyncTime = Date.now() + (autoSyncInterval * 60 * 1000);
+            }
+        } else {
+            console.error('Auto-sync error:', data.error);
+            showAutoSyncNotification('Auto-sync failed: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Auto-sync failed:', error.message);
+        showAutoSyncNotification('Auto-sync failed: ' + error.message, 'error');
+    } finally {
+        // Restore indicator
+        if (indicator) {
+            indicator.classList.remove('bg-warning');
+            indicator.classList.add('bg-success');
+        }
+    }
+}
+
+function showAutoSyncNotification(message, type = 'info') {
+    // Create toast notification
+    const toast = document.createElement('div');
+    toast.className = 'toast toast-end z-50';
+    const alertClass = type === 'error' ? 'alert-error' : 'alert-info';
+    toast.innerHTML = `
+        <div class="alert ${alertClass}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <span>${message}</span>
+        </div>
+    `;
+    document.body.appendChild(toast);
+    
+    // Remove after 5 seconds
+    setTimeout(() => {
+        toast.remove();
+    }, 5000);
+}
+
+function updateAutoSyncCountdown() {
+    const countdownEl = document.getElementById('nextSyncCountdown');
+    if (!countdownEl || !nextSyncTime) return;
+    
+    const remaining = Math.max(0, Math.ceil((nextSyncTime - Date.now()) / 1000));
+    const minutes = Math.floor(remaining / 60);
+    const seconds = remaining % 60;
+    
+    countdownEl.textContent = `(next in ${minutes}:${seconds.toString().padStart(2, '0')})`;
+}
+
+// Start auto-sync if interval is set
+if (autoSyncInterval > 0) {
+    console.log('Auto-sync enabled: every', autoSyncInterval, 'minutes');
+    
+    // Set initial next sync time
+    nextSyncTime = Date.now() + (autoSyncInterval * 60 * 1000);
+    
+    // Start the auto-sync timer
+    autoSyncTimer = setInterval(autoSyncGitHub, autoSyncInterval * 60 * 1000);
+    
+    // Start countdown display update
+    countdownInterval = setInterval(updateAutoSyncCountdown, 1000);
+    updateAutoSyncCountdown();
+}
 </script>
 {% endblock %}

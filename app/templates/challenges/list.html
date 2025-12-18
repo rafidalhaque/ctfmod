@@ -97,6 +97,7 @@
                             <th class="hidden lg:table-cell">Points</th>
                             <th class="hidden md:table-cell">Setter</th>
                             <th>Status</th>
+                            <th class="hidden lg:table-cell">PR</th>
                             <th class="hidden xl:table-cell">CTFd</th>
                             <th>Actions</th>
                         </tr>
@@ -130,8 +131,17 @@
                                 <span class="badge badge-success badge-sm">Accepted</span>
                                 {% elif challenge.status == 'pending' %}
                                 <span class="badge badge-warning badge-sm">Pending</span>
+                                {% elif challenge.status == 'declined' %}
+                                <span class="badge badge-error badge-sm">Declined</span>
                                 {% else %}
                                 <span class="badge badge-sm">{{ challenge.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="hidden lg:table-cell">
+                                {% if challenge.pr_number %}
+                                <span class="badge badge-info badge-sm">#{{ challenge.pr_number }}</span>
+                                {% else %}
+                                <span class="text-base-content/50">-</span>
                                 {% endif %}
                             </td>
                             <td class="hidden xl:table-cell">
@@ -152,8 +162,8 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="7" class="text-center text-base-content/50 py-8">
-                                No challenges found. Try adjusting your filters or create a new challenge.
+                            <td colspan="9" class="text-center text-base-content/50 py-8">
+                                No challenges found. Try adjusting your filters, sync from GitHub, or create a new challenge.
                             </td>
                         </tr>
                         {% endfor %}
