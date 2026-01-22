@@ -2004,9 +2004,18 @@ def update_team_status(team_id):
             if finalist_round_id:
                 update_data['finalist_round_id'] = finalist_round_id
             if finalist_position:
-                update_data['finalist_position'] = int(finalist_position)
+                try:
+                    pos = int(finalist_position)
+                    if pos < 1:
+                        return jsonify({'error': 'Finalist position must be a positive integer'}), 400
+                    update_data['finalist_position'] = pos
+                except (ValueError, TypeError):
+                    return jsonify({'error': 'Finalist position must be a valid integer'}), 400
             if finalist_score is not None:
-                update_data['finalist_score_previous_round'] = float(finalist_score)
+                try:
+                    update_data['finalist_score_previous_round'] = float(finalist_score)
+                except (ValueError, TypeError):
+                    return jsonify({'error': 'Finalist score must be a valid number'}), 400
         else:
             # If changing from finalist to another status, clear finalist fields
             update_data['is_finalist'] = False
@@ -2052,7 +2061,21 @@ def bulk_update_team_status():
         failed_ids = []
         for team_id in team_ids:
             try:
-                supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
+                # Prepare update data based on status
+                update_data = {'status': status}
+                
+                # Handle finalist status
+                if status == 'finalist':
+                    update_data['is_finalist'] = True
+                    # Note: bulk update doesn't set position/round/score - those should be set individually
+                else:
+                    # If changing from finalist to another status, clear finalist fields
+                    update_data['is_finalist'] = False
+                    update_data['finalist_round_id'] = None
+                    update_data['finalist_position'] = None
+                    update_data['finalist_score_previous_round'] = None
+                
+                supabase.table('teams').update(update_data).eq('id', team_id).execute()
                 updated_count += 1
             except Exception:
                 failed_ids.append(team_id)

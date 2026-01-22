@@ -633,10 +633,10 @@ let roundsList = []; // Store rounds for dropdown
 
 async function loadRounds() {
     try {
-        const response = await fetch('/api/v1/stats');
+        const response = await fetch('/api/rounds');
         const result = await response.json();
-        if (result.success && result.data.rounds) {
-            roundsList = result.data.rounds;
+        if (result.data) {
+            roundsList = result.data;
             populateRoundsDropdown();
         }
     } catch (error) {
