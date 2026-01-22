@@ -75,6 +75,46 @@ def validate_finalist_fields(data):
     return True, None, validated
 
 
+def clear_ctfd_credentials_for_team(supabase, team_id):
+    """Clear CTFd credentials for a team and its members.
+    
+    This clears:
+    - ctfd_team_id and ctfd_team_password from ctfd_team_credentials
+    - ctfd_user_id and ctfd_password from ctfd_user_credentials for all team members
+    
+    Args:
+        supabase: Supabase client instance
+        team_id: The team's registration_id (used as foreign key in ctfd_team_credentials)
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: If database operations fail
+    """
+    try:
+        # Clear team credentials (set ctfd_team_id and password to NULL)
+        supabase.table('ctfd_team_credentials').update({
+            'ctfd_team_id': None,
+            'ctfd_team_password': None
+        }).eq('team_id', team_id).execute()
+        
+        # Get all members of this team
+        members_response = supabase.table('team_members').select('id').eq('team_id', team_id).execute()
+        if members_response.data:
+            # Clear credentials for each member
+            for member in members_response.data:
+                supabase.table('ctfd_user_credentials').update({
+                    'ctfd_user_id': None,
+                    'ctfd_password': None
+                }).eq('member_id', member['id']).execute()
+        
+        logger.info(f'Cleared CTFd credentials for team {team_id} and its members')
+    except Exception as e:
+        logger.error(f'Error clearing CTFd credentials for team {team_id}: {str(e)}')
+        raise
+
+
 def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
     """Convert a datetime-local string to ISO 8601 format with timezone offset.
     
@@ -2024,10 +2064,12 @@ def update_team_status(team_id):
         if status not in valid_statuses:
             return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
         
-        # Check if the team exists
-        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        # Check if the team exists and get registration_id
+        existing = supabase.table('teams').select('id, registration_id').eq('id', team_id).execute()
         if not existing.data:
             return jsonify({'error': 'Team not found'}), 404
+        
+        registration_id = existing.data[0].get('registration_id')
         
         # Prepare update data
         update_data = {'status': status}
@@ -2040,6 +2082,10 @@ def update_team_status(team_id):
             if not is_valid:
                 return jsonify({'error': error_msg}), 400
             update_data.update(validated_fields)
+            
+            # Clear CTFd credentials to generate fresh ones
+            if registration_id:
+                clear_ctfd_credentials_for_team(supabase, registration_id)
         else:
             # If changing from finalist to another status, clear finalist fields
             update_data['is_finalist'] = False
@@ -2085,6 +2131,14 @@ def bulk_update_team_status():
         failed_ids = []
         for team_id in team_ids:
             try:
+                # Get team's registration_id first
+                team_response = supabase.table('teams').select('registration_id').eq('id', team_id).execute()
+                if not team_response.data:
+                    failed_ids.append(team_id)
+                    continue
+                
+                registration_id = team_response.data[0].get('registration_id')
+                
                 # Prepare update data based on status
                 update_data = {'status': status}
                 
@@ -2092,6 +2146,10 @@ def bulk_update_team_status():
                 if status == 'finalist':
                     update_data['is_finalist'] = True
                     # Note: bulk update doesn't set position/round/score - those should be set individually
+                    
+                    # Clear CTFd credentials to generate fresh ones
+                    if registration_id:
+                        clear_ctfd_credentials_for_team(supabase, registration_id)
                 else:
                     # If changing from finalist to another status, clear finalist fields
                     update_data['is_finalist'] = False
@@ -2183,10 +2241,12 @@ def update_team(team_id):
     try:
         data = request.json
         
-        # Check if team exists
-        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        # Check if team exists and get registration_id
+        existing = supabase.table('teams').select('id, registration_id').eq('id', team_id).execute()
         if not existing.data:
             return jsonify({'error': 'Team not found'}), 404
+        
+        registration_id = existing.data[0].get('registration_id')
         
         # Fields that can be updated
         allowed_fields = [
@@ -2221,6 +2281,10 @@ def update_team(team_id):
                     return jsonify({'error': error_msg}), 400
                 # Merge validated fields (this replaces the original values with validated ones)
                 update_data.update(validated_fields)
+                
+                # Clear CTFd credentials to generate fresh ones
+                if registration_id:
+                    clear_ctfd_credentials_for_team(supabase, registration_id)
             else:
                 # If changing from finalist to another status, clear finalist fields
                 update_data['is_finalist'] = False
