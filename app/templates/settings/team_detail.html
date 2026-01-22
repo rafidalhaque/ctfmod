@@ -71,6 +71,7 @@
                             <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
                             <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
                             <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                            <option value="finalist" {% if team.status == 'finalist' %}selected{% endif %}>Finalist</option>
                         </select>
                         <span id="statusUpdateIndicator" class="loading loading-spinner loading-xs hidden"></span>
                     </div>
@@ -94,6 +95,29 @@
                 <div>
                     <p class="text-sm text-base-content/50">Registration ID</p>
                     <p class="font-semibold">{{ team.registration_id }}</p>
+                </div>
+                {% endif %}
+                {% if team.is_finalist %}
+                <div class="col-span-full">
+                    <div class="alert alert-info">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <div>
+                            <h3 class="font-bold">Finalist Qualification</h3>
+                            <div class="text-sm">
+                                {% if team.finalist_position %}
+                                <p>Position in previous round: <span class="font-semibold badge badge-secondary">#{{ team.finalist_position }}</span></p>
+                                {% endif %}
+                                {% if team.finalist_score_previous_round %}
+                                <p>Score: <span class="font-semibold">{{ team.finalist_score_previous_round }}</span></p>
+                                {% endif %}
+                                {% if team.finalist_round_name %}
+                                <p>Qualified from: <span class="font-semibold">{{ team.finalist_round_name }}</span></p>
+                                {% elif team.finalist_round_id %}
+                                <p>Qualified from: <span class="font-semibold">Round {{ team.finalist_round_id }}</span></p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 {% endif %}
             </div>
@@ -322,13 +346,40 @@
                     <label class="label">
                         <span class="label-text">Status</span>
                     </label>
-                    <select id="editTeamStatus" class="select select-bordered">
+                    <select id="editTeamStatus" class="select select-bordered" onchange="handleStatusChange()">
                         <option value="pending">Pending</option>
                         <option value="approved">Approved</option>
                         <option value="rejected">Rejected</option>
                         <option value="waitlisted">Waitlisted</option>
                         <option value="cancelled">Cancelled</option>
+                        <option value="finalist">Finalist</option>
                     </select>
+                </div>
+            </div>
+            <!-- Finalist-specific fields (shown only when status is finalist) -->
+            <div id="finalistFields" class="mt-4 p-4 bg-base-200 rounded-lg hidden">
+                <h4 class="font-semibold mb-3">Finalist Information</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Position in Previous Round</span>
+                        </label>
+                        <input type="number" id="editFinalistPosition" class="input input-bordered" min="1" placeholder="e.g., 1, 2, 3..." />
+                    </div>
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Score</span>
+                        </label>
+                        <input type="number" id="editFinalistScore" class="input input-bordered" step="0.01" placeholder="Previous round score" />
+                    </div>
+                    <div class="form-control md:col-span-2">
+                        <label class="label">
+                            <span class="label-text">Qualified from Round</span>
+                        </label>
+                        <select id="editFinalistRoundId" class="select select-bordered">
+                            <option value="">Select Round...</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="modal-action">
@@ -578,8 +629,49 @@ function showToast(message, type = 'info') {
 }
 
 // Edit team modal functions
+let roundsList = []; // Store rounds for dropdown
+
+async function loadRounds() {
+    try {
+        const response = await fetch('/api/rounds');
+        const result = await response.json();
+        if (result.data) {
+            roundsList = result.data;
+            populateRoundsDropdown();
+        }
+    } catch (error) {
+        console.error('Error loading rounds:', error);
+    }
+}
+
+function populateRoundsDropdown() {
+    const dropdown = document.getElementById('editFinalistRoundId');
+    dropdown.innerHTML = '<option value="">Select Round...</option>';
+    roundsList.forEach(round => {
+        const option = document.createElement('option');
+        option.value = round.id;
+        option.textContent = round.name;
+        dropdown.appendChild(option);
+    });
+}
+
+function handleStatusChange() {
+    const status = document.getElementById('editTeamStatus').value;
+    const finalistFields = document.getElementById('finalistFields');
+    if (status === 'finalist') {
+        finalistFields.classList.remove('hidden');
+    } else {
+        finalistFields.classList.add('hidden');
+    }
+}
+
 async function openEditTeamModal(teamId) {
     const modal = document.getElementById('editTeamModal');
+    
+    // Load rounds if not already loaded
+    if (roundsList.length === 0) {
+        await loadRounds();
+    }
     
     try {
         const response = await fetch(`/settings/teams/${teamId}/json`);
@@ -593,6 +685,15 @@ async function openEditTeamModal(teamId) {
             document.getElementById('editCaptainEmail').value = team.captain_email || '';
             document.getElementById('editContactNumber').value = team.contact_number || '';
             document.getElementById('editTeamStatus').value = team.status || 'pending';
+            
+            // Set finalist fields if team is finalist
+            document.getElementById('editFinalistPosition').value = team.finalist_position || '';
+            document.getElementById('editFinalistScore').value = team.finalist_score_previous_round || '';
+            document.getElementById('editFinalistRoundId').value = team.finalist_round_id || '';
+            
+            // Show/hide finalist fields based on status
+            handleStatusChange();
+            
             modal.showModal();
         } else {
             showToast('Error: ' + (result.error || 'Failed to load team data'), 'error');
@@ -616,13 +717,25 @@ document.getElementById('editTeamForm').addEventListener('submit', async functio
     btnText.textContent = 'Saving...';
     spinner.classList.remove('hidden');
     
+    const status = document.getElementById('editTeamStatus').value;
     const data = {
         team_name: document.getElementById('editTeamName').value,
         captain_name: document.getElementById('editCaptainName').value,
         captain_email: document.getElementById('editCaptainEmail').value,
         contact_number: document.getElementById('editContactNumber').value,
-        status: document.getElementById('editTeamStatus').value
+        status: status
     };
+    
+    // Add finalist fields if status is finalist
+    if (status === 'finalist') {
+        const position = document.getElementById('editFinalistPosition').value;
+        const score = document.getElementById('editFinalistScore').value;
+        const roundId = document.getElementById('editFinalistRoundId').value;
+        
+        if (position) data.finalist_position = parseInt(position);
+        if (score) data.finalist_score_previous_round = parseFloat(score);
+        if (roundId) data.finalist_round_id = parseInt(roundId);
+    }
     
     try {
         const response = await fetch(`/settings/teams/${teamId}`, {

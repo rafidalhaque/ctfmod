@@ -44,6 +44,7 @@
                         <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
                         <option value="waitlisted" {% if status_filter == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
                         <option value="cancelled" {% if status_filter == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                        <option value="finalist" {% if status_filter == 'finalist' %}selected{% endif %}>Finalist</option>
                     </select>
                 </div>
                 <div class="flex gap-2">
@@ -61,7 +62,7 @@
     <div class="stats stats-vertical sm:stats-horizontal shadow bg-base-100 w-full">
         <div class="stat py-2 px-4">
             <div class="stat-title text-xs">Total Teams</div>
-            <div class="stat-value text-lg text-primary">{{ status_counts.get('pending', 0) + status_counts.get('approved', 0) + status_counts.get('rejected', 0) + status_counts.get('waitlisted', 0) + status_counts.get('cancelled', 0) }}</div>
+            <div class="stat-value text-lg text-primary">{{ status_counts.get('pending', 0) + status_counts.get('approved', 0) + status_counts.get('rejected', 0) + status_counts.get('waitlisted', 0) + status_counts.get('cancelled', 0) + status_counts.get('finalist', 0) }}</div>
         </div>
         <div class="stat py-2 px-4">
             <div class="stat-title text-xs">Pending</div>
@@ -70,6 +71,10 @@
         <div class="stat py-2 px-4">
             <div class="stat-title text-xs">Approved</div>
             <div class="stat-value text-lg text-success">{{ status_counts.get('approved', 0) }}</div>
+        </div>
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Finalist</div>
+            <div class="stat-value text-lg text-secondary">{{ status_counts.get('finalist', 0) }}</div>
         </div>
         <div class="stat py-2 px-4">
             <div class="stat-title text-xs">Rejected</div>
@@ -102,6 +107,7 @@
                         <option value="rejected">Rejected</option>
                         <option value="waitlisted">Waitlisted</option>
                         <option value="cancelled">Cancelled</option>
+                        <option value="finalist">Finalist</option>
                     </select>
                     <button onclick="applyBulkStatus()" class="btn btn-primary btn-sm">
                         Apply Status
@@ -153,6 +159,7 @@
                                 <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
                                 <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
                                 <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                <option value="finalist" {% if team.status == 'finalist' %}selected{% endif %}>Finalist</option>
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-2 text-xs mt-2">
@@ -271,6 +278,7 @@
                                     <option value="rejected" {% if team.status == 'rejected' %}selected{% endif %}>Rejected</option>
                                     <option value="waitlisted" {% if team.status == 'waitlisted' %}selected{% endif %}>Waitlisted</option>
                                     <option value="cancelled" {% if team.status == 'cancelled' %}selected{% endif %}>Cancelled</option>
+                                    <option value="finalist" {% if team.status == 'finalist' %}selected{% endif %}>Finalist</option>
                                 </select>
                             </td>
                             <td>

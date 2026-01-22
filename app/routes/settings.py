@@ -36,6 +36,45 @@ def allowed_image(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
+def validate_finalist_fields(data):
+    """Validate finalist-specific fields.
+    
+    Args:
+        data: Dictionary with optional keys 'finalist_position' and 'finalist_score_previous_round'
+    
+    Returns:
+        Tuple (is_valid, error_message, validated_data)
+        where validated_data is a dict with validated/converted values
+    
+    Raises:
+        None - returns error info instead
+    """
+    validated = {}
+    
+    # Validate position if provided
+    if 'finalist_position' in data and data['finalist_position']:
+        try:
+            pos = int(data['finalist_position'])
+            if pos < 1:
+                return False, 'Finalist position must be a positive integer', None
+            validated['finalist_position'] = pos
+        except (ValueError, TypeError):
+            return False, 'Finalist position must be a valid integer', None
+    
+    # Validate score if provided
+    if 'finalist_score_previous_round' in data and data['finalist_score_previous_round'] is not None:
+        try:
+            validated['finalist_score_previous_round'] = float(data['finalist_score_previous_round'])
+        except (ValueError, TypeError):
+            return False, 'Finalist score must be a valid number', None
+    
+    # Include round_id if provided (no validation needed, DB constraint handles it)
+    if 'finalist_round_id' in data and data['finalist_round_id']:
+        validated['finalist_round_id'] = data['finalist_round_id']
+    
+    return True, None, validated
+
+
 def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
     """Convert a datetime-local string to ISO 8601 format with timezone offset.
     
@@ -1753,7 +1792,7 @@ def teams_list():
     if supabase:
         try:
             # Get status counts for teams
-            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled', 'finalist']
             for status in valid_statuses:
                 response = supabase.table('teams').select('id', count='exact').eq('status', status).execute()
                 if hasattr(response, 'count') and response.count is not None:
@@ -1858,6 +1897,12 @@ def team_detail(team_id):
             for member in members:
                 user_creds_response = supabase.table('ctfd_user_credentials').select('*').eq('member_id', member['id']).execute()
                 member['credentials'] = user_creds_response.data[0] if user_creds_response.data else None
+            
+            # Fetch finalist round information if team is finalist
+            if team.get('is_finalist') and team.get('finalist_round_id'):
+                round_response = supabase.table('rounds').select('name').eq('id', team['finalist_round_id']).execute()
+                if round_response.data:
+                    team['finalist_round_name'] = round_response.data[0]['name']
                 
         except Exception as e:
             flash(f'Error fetching team details: {str(e)}', 'error')
@@ -1901,7 +1946,7 @@ def participants_list():
             all_members_response = supabase.table('team_members').select('id, team_id').execute()
             all_members = all_members_response.data if all_members_response.data else []
             
-            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+            valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled', 'finalist']
             for status in valid_statuses:
                 status_counts[status] = 0
             
@@ -1975,7 +2020,7 @@ def update_team_status(team_id):
             return jsonify({'error': 'Status is required'}), 400
         
         # Valid statuses
-        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled', 'finalist']
         if status not in valid_statuses:
             return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
         
@@ -1984,8 +2029,26 @@ def update_team_status(team_id):
         if not existing.data:
             return jsonify({'error': 'Team not found'}), 404
         
-        # Update the team status
-        supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
+        # Prepare update data
+        update_data = {'status': status}
+        
+        # Handle finalist status - update finalist-specific fields
+        if status == 'finalist':
+            update_data['is_finalist'] = True
+            # Validate and get finalist fields
+            is_valid, error_msg, validated_fields = validate_finalist_fields(data)
+            if not is_valid:
+                return jsonify({'error': error_msg}), 400
+            update_data.update(validated_fields)
+        else:
+            # If changing from finalist to another status, clear finalist fields
+            update_data['is_finalist'] = False
+            update_data['finalist_round_id'] = None
+            update_data['finalist_position'] = None
+            update_data['finalist_score_previous_round'] = None
+        
+        # Update the team status and finalist fields
+        supabase.table('teams').update(update_data).eq('id', team_id).execute()
         
         return jsonify({'success': True, 'message': f'Team status updated to {status}'})
     except Exception as e:
@@ -2013,7 +2076,7 @@ def bulk_update_team_status():
             return jsonify({'error': 'Status is required'}), 400
         
         # Valid statuses
-        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled', 'finalist']
         if status not in valid_statuses:
             return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
         
@@ -2022,7 +2085,21 @@ def bulk_update_team_status():
         failed_ids = []
         for team_id in team_ids:
             try:
-                supabase.table('teams').update({'status': status}).eq('id', team_id).execute()
+                # Prepare update data based on status
+                update_data = {'status': status}
+                
+                # Handle finalist status
+                if status == 'finalist':
+                    update_data['is_finalist'] = True
+                    # Note: bulk update doesn't set position/round/score - those should be set individually
+                else:
+                    # If changing from finalist to another status, clear finalist fields
+                    update_data['is_finalist'] = False
+                    update_data['finalist_round_id'] = None
+                    update_data['finalist_position'] = None
+                    update_data['finalist_score_previous_round'] = None
+                
+                supabase.table('teams').update(update_data).eq('id', team_id).execute()
                 updated_count += 1
             except Exception:
                 failed_ids.append(team_id)
@@ -2053,7 +2130,7 @@ def get_team_statuses():
     
     try:
         # Valid statuses
-        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled']
+        valid_statuses = ['pending', 'approved', 'rejected', 'waitlisted', 'cancelled', 'finalist']
         
         # Get count for each status
         status_counts = {}
@@ -2114,7 +2191,8 @@ def update_team(team_id):
         # Fields that can be updated
         allowed_fields = [
             'team_name', 'project_name', 'captain_name', 'captain_email',
-            'contact_name', 'contact_email', 'contact_number', 'status'
+            'contact_name', 'contact_email', 'contact_number', 'status',
+            'finalist_position', 'finalist_round_id', 'finalist_score_previous_round'
         ]
         
         update_data = {}
@@ -2132,6 +2210,23 @@ def update_team(team_id):
         # Validate required fields
         if 'team_name' in update_data and not update_data['team_name']:
             return jsonify({'error': 'Team name is required'}), 400
+        
+        # Handle finalist status logic
+        if 'status' in update_data:
+            if update_data['status'] == 'finalist':
+                update_data['is_finalist'] = True
+                # Validate finalist fields if provided
+                is_valid, error_msg, validated_fields = validate_finalist_fields(update_data)
+                if not is_valid:
+                    return jsonify({'error': error_msg}), 400
+                # Merge validated fields (this replaces the original values with validated ones)
+                update_data.update(validated_fields)
+            else:
+                # If changing from finalist to another status, clear finalist fields
+                update_data['is_finalist'] = False
+                update_data['finalist_round_id'] = None
+                update_data['finalist_position'] = None
+                update_data['finalist_score_previous_round'] = None
         
         supabase.table('teams').update(update_data).eq('id', team_id).execute()
         return jsonify({'success': True, 'message': 'Team updated successfully'})
