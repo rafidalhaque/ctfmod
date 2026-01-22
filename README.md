@@ -20,6 +20,7 @@ A web-based platform for managing CTF (Capture The Flag) challenges for events l
 - 📧 **SMTP Email Configuration**: Configure SMTP settings for sending emails with test functionality
 - ✉️ **Dynamic Email Designer**: Create and manage email templates with variable placeholders
 - 👥 **Teams & Participants Management**: View teams, members, and their CTFd credentials (passwords in plain text)
+- 🏅 **Finalist Status**: Mark teams as finalists with their position from previous round's scoreboard
 
 ## Tech Stack
 
@@ -194,6 +195,10 @@ CREATE TABLE teams (
     contact_email VARCHAR(255),
     contact_number VARCHAR(50),
     status VARCHAR(50) DEFAULT 'pending',
+    is_finalist BOOLEAN DEFAULT FALSE,
+    finalist_round_id INTEGER REFERENCES rounds(id),
+    finalist_position INTEGER,
+    finalist_score_previous_round NUMERIC,
     metadata JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -277,6 +282,42 @@ CREATE TABLE ctfd_user_credentials (
 20. **Bulk Email Sending**: Send emails to all participants using any template with automatic variable substitution
 21. **View Teams**: Access team list with CTFd credentials (passwords shown in plain text)
 22. **View Participants**: Access participant list with individual CTFd credentials (passwords shown in plain text)
+23. **Finalist Status**: Mark teams as finalists with position tracking from previous round scoreboard
+
+### Finalist Status Management
+
+The platform allows marking teams as finalists and tracking their qualification details:
+
+**Features:**
+- Mark teams with "finalist" status alongside other statuses (pending, approved, rejected, etc.)
+- Record position (rank) from previous round's scoreboard
+- Store optional score from the previous round
+- Link to the qualifying round
+- Display finalist badge and details on team detail page
+
+**How to Use:**
+1. Navigate to Teams list in Settings
+2. Click on a team to view details or use status dropdown
+3. Select "Finalist" status
+4. In the edit modal, enter:
+   - **Position**: The team's rank in the previous round (required, must be positive integer)
+   - **Score**: The team's score from previous round (optional)
+   - **Qualified from Round**: Select the round from which they qualified (optional)
+5. Save changes
+
+**Viewing Finalist Information:**
+- Teams list shows finalist status in the status column
+- Statistics dashboard shows count of finalist teams
+- Team detail page displays a blue info badge with:
+  - Position badge (e.g., "#1", "#2")
+  - Score (if recorded)
+  - Round name (if specified)
+
+**Bulk Operations:**
+- You can bulk update multiple teams to finalist status
+- Individual finalist details (position, score, round) must be set per team
+- Changing status from finalist to another status automatically clears finalist fields
+
 
 ### CTFd Push Configuration
 
