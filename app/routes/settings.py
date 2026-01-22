@@ -36,6 +36,45 @@ def allowed_image(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_IMAGE_EXTENSIONS
 
 
+def validate_finalist_fields(data):
+    """Validate finalist-specific fields.
+    
+    Args:
+        data: Dictionary with optional keys 'finalist_position' and 'finalist_score_previous_round'
+    
+    Returns:
+        Tuple (is_valid, error_message, validated_data)
+        where validated_data is a dict with validated/converted values
+    
+    Raises:
+        None - returns error info instead
+    """
+    validated = {}
+    
+    # Validate position if provided
+    if 'finalist_position' in data and data['finalist_position']:
+        try:
+            pos = int(data['finalist_position'])
+            if pos < 1:
+                return False, 'Finalist position must be a positive integer', None
+            validated['finalist_position'] = pos
+        except (ValueError, TypeError):
+            return False, 'Finalist position must be a valid integer', None
+    
+    # Validate score if provided
+    if 'finalist_score_previous_round' in data and data['finalist_score_previous_round'] is not None:
+        try:
+            validated['finalist_score_previous_round'] = float(data['finalist_score_previous_round'])
+        except (ValueError, TypeError):
+            return False, 'Finalist score must be a valid number', None
+    
+    # Include round_id if provided (no validation needed, DB constraint handles it)
+    if 'finalist_round_id' in data and data['finalist_round_id']:
+        validated['finalist_round_id'] = data['finalist_round_id']
+    
+    return True, None, validated
+
+
 def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
     """Convert a datetime-local string to ISO 8601 format with timezone offset.
     
@@ -1996,26 +2035,11 @@ def update_team_status(team_id):
         # Handle finalist status - update finalist-specific fields
         if status == 'finalist':
             update_data['is_finalist'] = True
-            # Get optional finalist fields from request
-            finalist_round_id = data.get('finalist_round_id')
-            finalist_position = data.get('finalist_position')
-            finalist_score = data.get('finalist_score_previous_round')
-            
-            if finalist_round_id:
-                update_data['finalist_round_id'] = finalist_round_id
-            if finalist_position:
-                try:
-                    pos = int(finalist_position)
-                    if pos < 1:
-                        return jsonify({'error': 'Finalist position must be a positive integer'}), 400
-                    update_data['finalist_position'] = pos
-                except (ValueError, TypeError):
-                    return jsonify({'error': 'Finalist position must be a valid integer'}), 400
-            if finalist_score is not None:
-                try:
-                    update_data['finalist_score_previous_round'] = float(finalist_score)
-                except (ValueError, TypeError):
-                    return jsonify({'error': 'Finalist score must be a valid number'}), 400
+            # Validate and get finalist fields
+            is_valid, error_msg, validated_fields = validate_finalist_fields(data)
+            if not is_valid:
+                return jsonify({'error': error_msg}), 400
+            update_data.update(validated_fields)
         else:
             # If changing from finalist to another status, clear finalist fields
             update_data['is_finalist'] = False
@@ -2192,21 +2216,11 @@ def update_team(team_id):
             if update_data['status'] == 'finalist':
                 update_data['is_finalist'] = True
                 # Validate finalist fields if provided
-                if 'finalist_position' in update_data and update_data['finalist_position']:
-                    try:
-                        pos = int(update_data['finalist_position'])
-                        if pos < 1:
-                            return jsonify({'error': 'Finalist position must be positive'}), 400
-                        update_data['finalist_position'] = pos
-                    except (ValueError, TypeError):
-                        return jsonify({'error': 'Finalist position must be a valid integer'}), 400
-                
-                # Validate finalist score if provided
-                if 'finalist_score_previous_round' in update_data and update_data['finalist_score_previous_round'] is not None:
-                    try:
-                        update_data['finalist_score_previous_round'] = float(update_data['finalist_score_previous_round'])
-                    except (ValueError, TypeError):
-                        return jsonify({'error': 'Finalist score must be a valid number'}), 400
+                is_valid, error_msg, validated_fields = validate_finalist_fields(update_data)
+                if not is_valid:
+                    return jsonify({'error': error_msg}), 400
+                # Merge validated fields (this replaces the original values with validated ones)
+                update_data.update(validated_fields)
             else:
                 # If changing from finalist to another status, clear finalist fields
                 update_data['is_finalist'] = False
