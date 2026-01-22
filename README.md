@@ -67,6 +67,7 @@ cp .env.example .env
      8. `008_add_email_audit_logs.sql` - Adds email audit logs
      9. `009_add_ctfd_operation_logs.sql` - Adds CTFd operation logs
      10. `010_add_conflict_resolution_fields.sql` - Adds fields for challenge editing and conflict resolution
+     11. `011_add_finalist_status.sql` - Adds finalist status support with position and round reference
    - Update `.env` with your Supabase URL and key
 
 6. Run the application:
