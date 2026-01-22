@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_from_directory
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_from_directory, Response
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.ctfd_client import CTFdAPIClient, CTFdAPIException
@@ -10,6 +10,8 @@ import uuid
 import logging
 import string
 import random
+import csv
+import io
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from werkzeug.utils import secure_filename
@@ -1906,6 +1908,130 @@ def teams_list():
                           search=search,
                           status_filter=status_filter,
                           status_counts=status_counts)
+
+
+@settings_bp.route('/settings/teams/export-csv')
+@login_required
+def export_teams_csv():
+    """Export teams and participants data as CSV.
+    
+    CSV format (one member per line):
+    Position, Team ID, Team Name, Total Members, Captain Name, 
+    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone
+    
+    Query parameters:
+    - status: Filter by team status (optional)
+    """
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        flash('Database not configured', 'error')
+        return redirect(url_for('settings.teams_list'))
+    
+    try:
+        # Get status filter from query params
+        status_filter = request.args.get('status', '', type=str).strip()
+        
+        # Build query for teams
+        query = supabase.table('teams').select('*')
+        
+        # Apply status filter if provided
+        if status_filter:
+            query = query.eq('status', status_filter)
+        
+        # Order by finalist_position (if available), then by team_name
+        query = query.order('finalist_position', desc=False, nullsfirst=False).order('team_name')
+        
+        # Get all teams
+        teams_response = query.execute()
+        teams = teams_response.data if teams_response.data else []
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            'Position',
+            'Team ID',
+            'Team Name',
+            'Total Members',
+            'Captain Name',
+            'Member Name',
+            'Member Class',
+            'Member Institution',
+            'Member Email',
+            'Member Phone'
+        ])
+        
+        # Process each team
+        for idx, team in enumerate(teams, start=1):
+            registration_id = team.get('registration_id')
+            team_name = team.get('team_name', '')
+            captain_name = team.get('captain_name', '')
+            finalist_position = team.get('finalist_position')
+            
+            # Use finalist_position if available, otherwise use sequential number
+            position = finalist_position if finalist_position else idx
+            
+            # Get team members
+            if registration_id:
+                members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).order('id').execute()
+                members = members_response.data if members_response.data else []
+            else:
+                members = []
+            
+            total_members = len(members)
+            
+            # If team has no members, write one line with team info only
+            if not members:
+                writer.writerow([
+                    position,
+                    registration_id or '',
+                    team_name,
+                    total_members,
+                    captain_name,
+                    '',  # Member Name
+                    '',  # Member Class
+                    '',  # Member Institution
+                    '',  # Member Email
+                    ''   # Member Phone
+                ])
+            else:
+                # Write one line per member
+                for member in members:
+                    writer.writerow([
+                        position,
+                        registration_id or '',
+                        team_name,
+                        total_members,
+                        captain_name,
+                        member.get('name', ''),
+                        member.get('class', ''),
+                        member.get('institution', ''),
+                        member.get('email', ''),
+                        member.get('phone', '')
+                    ])
+        
+        # Prepare response
+        output.seek(0)
+        
+        # Generate filename with status filter if provided
+        filename = f'teams_export'
+        if status_filter:
+            filename += f'_{status_filter}'
+        filename += f'_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+        
+    except Exception as e:
+        logger.error(f'Error exporting teams CSV: {str(e)}')
+        flash(f'Error exporting teams: {str(e)}', 'error')
+        return redirect(url_for('settings.teams_list'))
 
 
 @settings_bp.route('/settings/teams/<int:team_id>')
