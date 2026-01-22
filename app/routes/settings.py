@@ -2193,8 +2193,20 @@ def update_team(team_id):
                 update_data['is_finalist'] = True
                 # Validate finalist fields if provided
                 if 'finalist_position' in update_data and update_data['finalist_position']:
-                    if int(update_data['finalist_position']) < 1:
-                        return jsonify({'error': 'Finalist position must be positive'}), 400
+                    try:
+                        pos = int(update_data['finalist_position'])
+                        if pos < 1:
+                            return jsonify({'error': 'Finalist position must be positive'}), 400
+                        update_data['finalist_position'] = pos
+                    except (ValueError, TypeError):
+                        return jsonify({'error': 'Finalist position must be a valid integer'}), 400
+                
+                # Validate finalist score if provided
+                if 'finalist_score_previous_round' in update_data and update_data['finalist_score_previous_round'] is not None:
+                    try:
+                        update_data['finalist_score_previous_round'] = float(update_data['finalist_score_previous_round'])
+                    except (ValueError, TypeError):
+                        return jsonify({'error': 'Finalist score must be a valid number'}), 400
             else:
                 # If changing from finalist to another status, clear finalist fields
                 update_data['is_finalist'] = False
