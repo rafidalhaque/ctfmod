@@ -44,6 +44,16 @@ def test_csv_export_logic():
         }
     ]
     
+    # Sort teams: those with finalist_position first (sorted by position), then others
+    teams_with_position = [t for t in teams if t.get('finalist_position') is not None]
+    teams_without_position = [t for t in teams if t.get('finalist_position') is None]
+    
+    # Sort teams with position by their finalist_position
+    teams_with_position.sort(key=lambda t: t.get('finalist_position'))
+    
+    # Combine: finalist teams first, then others
+    sorted_teams = teams_with_position + teams_without_position
+    
     # Create CSV
     output = io.StringIO()
     writer = csv.writer(output)
@@ -62,8 +72,13 @@ def test_csv_export_logic():
         'Member Phone'
     ])
     
+    # Track position for teams without finalist_position
+    # Start from max finalist_position + 1, or 1 if no finalist teams
+    max_finalist_position = max([t.get('finalist_position') for t in teams_with_position], default=0)
+    next_sequential_position = max_finalist_position + 1
+    
     # Process each team
-    for idx, team in enumerate(teams, start=1):
+    for team in sorted_teams:
         registration_id = team.get('registration_id')
         team_name = team.get('team_name', '')
         captain_name = team.get('captain_name', '')
@@ -71,7 +86,11 @@ def test_csv_export_logic():
         members = team.get('members', [])
         
         # Use finalist_position if available, otherwise use sequential number
-        position = finalist_position if finalist_position else idx
+        if finalist_position:
+            position = finalist_position
+        else:
+            position = next_sequential_position
+            next_sequential_position += 1
         
         total_members = len(members)
         
@@ -116,6 +135,8 @@ def test_csv_export_logic():
         "Header row is incorrect"
     print("✓ Header row is correct")
     
+    # After sorting: Team Alpha (pos 1), Team Gamma (pos 2), Team Beta (no pos, gets 3)
+    
     # Check Team Alpha (2 members, position 1)
     assert rows[1][0] == '1', "Team Alpha position should be 1"
     assert rows[1][1] == '101', "Team Alpha ID should be 101"
@@ -124,25 +145,25 @@ def test_csv_export_logic():
     assert rows[1][5] == 'Alice Smith', "First member name is incorrect"
     assert rows[2][0] == '1', "Team Alpha second row should have same position"
     assert rows[2][5] == 'Bob Jones', "Second member name is incorrect"
-    print("✓ Team Alpha (with finalist_position) exported correctly")
+    print("✓ Team Alpha (with finalist_position=1) exported correctly")
     
-    # Check Team Beta (1 member, no finalist position - should use sequential number 2)
-    assert rows[3][0] == '2', "Team Beta position should be 2 (sequential)"
-    assert rows[3][1] == '102', "Team Beta ID should be 102"
-    assert rows[3][2] == 'Team Beta', "Team Beta name is incorrect"
-    assert rows[3][3] == '1', "Team Beta should have 1 member"
-    assert rows[3][5] == 'Charlie Brown', "Member name is incorrect"
-    print("✓ Team Beta (without finalist_position) exported correctly")
+    # Check Team Gamma (no members, position 2) - comes before Team Beta due to finalist_position
+    assert rows[3][0] == '2', "Team Gamma position should be 2"
+    assert rows[3][1] == '103', "Team Gamma ID should be 103"
+    assert rows[3][2] == 'Team Gamma', "Team Gamma name is incorrect"
+    assert rows[3][3] == '0', "Team Gamma should have 0 members"
+    assert rows[3][5] == '', "Member name should be empty"
+    print("✓ Team Gamma (with finalist_position=2) exported correctly")
     
-    # Check Team Gamma (no members, position 2)
-    assert rows[4][0] == '2', "Team Gamma position should be 2"
-    assert rows[4][1] == '103', "Team Gamma ID should be 103"
-    assert rows[4][2] == 'Team Gamma', "Team Gamma name is incorrect"
-    assert rows[4][3] == '0', "Team Gamma should have 0 members"
-    assert rows[4][5] == '', "Member name should be empty"
-    print("✓ Team Gamma (no members) exported correctly")
+    # Check Team Beta (1 member, no finalist position - should use sequential number 3)
+    assert rows[4][0] == '3', "Team Beta position should be 3 (max_finalist_position + 1)"
+    assert rows[4][1] == '102', "Team Beta ID should be 102"
+    assert rows[4][2] == 'Team Beta', "Team Beta name is incorrect"
+    assert rows[4][3] == '1', "Team Beta should have 1 member"
+    assert rows[4][5] == 'Charlie Brown', "Member name is incorrect"
+    print("✓ Team Beta (without finalist_position, gets sequential) exported correctly")
     
-    # Total rows: header + 2 (Team Alpha) + 1 (Team Beta) + 1 (Team Gamma) = 5
+    # Total rows: header + 2 (Team Alpha) + 1 (Team Gamma) + 1 (Team Beta) = 5
     assert len(rows) == 5, f"Expected 5 rows, got {len(rows)}"
     print("✓ Total row count is correct")
     

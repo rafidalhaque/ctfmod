@@ -1939,12 +1939,22 @@ def export_teams_csv():
         if status_filter:
             query = query.eq('status', status_filter)
         
-        # Order by finalist_position (if available), then by team_name
-        query = query.order('finalist_position', desc=False, nullsfirst=False).order('team_name')
+        # Order by team_name for consistent ordering
+        query = query.order('team_name')
         
         # Get all teams
         teams_response = query.execute()
         teams = teams_response.data if teams_response.data else []
+        
+        # Sort teams: those with finalist_position first (sorted by position), then others
+        teams_with_position = [t for t in teams if t.get('finalist_position') is not None]
+        teams_without_position = [t for t in teams if t.get('finalist_position') is None]
+        
+        # Sort teams with position by their finalist_position
+        teams_with_position.sort(key=lambda t: t.get('finalist_position'))
+        
+        # Combine: finalist teams first, then others
+        sorted_teams = teams_with_position + teams_without_position
         
         # Create CSV in memory
         output = io.StringIO()
@@ -1964,15 +1974,24 @@ def export_teams_csv():
             'Member Phone'
         ])
         
+        # Track position for teams without finalist_position
+        # Start from max finalist_position + 1, or 1 if no finalist teams
+        max_finalist_position = max([t.get('finalist_position') for t in teams_with_position], default=0)
+        next_sequential_position = max_finalist_position + 1
+        
         # Process each team
-        for idx, team in enumerate(teams, start=1):
+        for team in sorted_teams:
             registration_id = team.get('registration_id')
             team_name = team.get('team_name', '')
             captain_name = team.get('captain_name', '')
             finalist_position = team.get('finalist_position')
             
             # Use finalist_position if available, otherwise use sequential number
-            position = finalist_position if finalist_position else idx
+            if finalist_position:
+                position = finalist_position
+            else:
+                position = next_sequential_position
+                next_sequential_position += 1
             
             # Get team members
             if registration_id:
