@@ -75,7 +75,7 @@ def validate_finalist_fields(data):
     return True, None, validated
 
 
-def clear_ctfd_credentials_for_team(supabase, team_id):
+def clear_ctfd_credentials_for_team(supabase, registration_id):
     """Clear CTFd credentials for a team and its members.
     
     This clears:
@@ -84,23 +84,30 @@ def clear_ctfd_credentials_for_team(supabase, team_id):
     
     Args:
         supabase: Supabase client instance
-        team_id: The team's registration_id (used as foreign key in ctfd_team_credentials)
+        registration_id: The team's registration_id (used as the foreign key 
+                        in ctfd_team_credentials.team_id and team_members.team_id)
     
     Returns:
         None
     
     Raises:
         Exception: If database operations fail
+    
+    Note:
+        This function updates member credentials individually in a loop.
+        For teams with many members, this could result in N+1 queries, but
+        it's acceptable since: (1) teams typically don't have hundreds of members,
+        (2) this operation is infrequent (only when status changes to finalist).
     """
     try:
         # Clear team credentials (set ctfd_team_id and password to NULL)
         supabase.table('ctfd_team_credentials').update({
             'ctfd_team_id': None,
             'ctfd_team_password': None
-        }).eq('team_id', team_id).execute()
+        }).eq('team_id', registration_id).execute()
         
         # Get all members of this team
-        members_response = supabase.table('team_members').select('id').eq('team_id', team_id).execute()
+        members_response = supabase.table('team_members').select('id').eq('team_id', registration_id).execute()
         if members_response.data:
             # Clear credentials for each member
             for member in members_response.data:
@@ -109,9 +116,9 @@ def clear_ctfd_credentials_for_team(supabase, team_id):
                     'ctfd_password': None
                 }).eq('member_id', member['id']).execute()
         
-        logger.info(f'Cleared CTFd credentials for team {team_id} and its members')
+        logger.info(f'Cleared CTFd credentials for team {registration_id} and its members')
     except Exception as e:
-        logger.error(f'Error clearing CTFd credentials for team {team_id}: {str(e)}')
+        logger.error(f'Error clearing CTFd credentials for team {registration_id}: {str(e)}')
         raise
 
 
