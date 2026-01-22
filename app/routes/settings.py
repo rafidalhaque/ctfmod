@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_from_directory
+from flask import Blueprint, render_template, request, jsonify, flash, redirect, url_for, current_app, send_from_directory, Response
 from flask_login import login_required, current_user
 from app.supabase_client import get_supabase_client
 from app.ctfd_client import CTFdAPIClient, CTFdAPIException
@@ -10,6 +10,8 @@ import uuid
 import logging
 import string
 import random
+import csv
+import io
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from werkzeug.utils import secure_filename
@@ -73,6 +75,53 @@ def validate_finalist_fields(data):
         validated['finalist_round_id'] = data['finalist_round_id']
     
     return True, None, validated
+
+
+def clear_ctfd_credentials_for_team(supabase, registration_id):
+    """Clear CTFd credentials for a team and its members.
+    
+    This clears:
+    - ctfd_team_id and ctfd_team_password from ctfd_team_credentials
+    - ctfd_user_id and ctfd_password from ctfd_user_credentials for all team members
+    
+    Args:
+        supabase: Supabase client instance
+        registration_id: The team's registration_id (used as the foreign key 
+                        in ctfd_team_credentials.team_id and team_members.team_id)
+    
+    Returns:
+        None
+    
+    Raises:
+        Exception: If database operations fail
+    
+    Note:
+        This function updates member credentials individually in a loop.
+        For teams with many members, this could result in N+1 queries, but
+        it's acceptable since: (1) teams typically don't have hundreds of members,
+        (2) this operation is infrequent (only when status changes to finalist).
+    """
+    try:
+        # Clear team credentials (set ctfd_team_id and password to NULL)
+        supabase.table('ctfd_team_credentials').update({
+            'ctfd_team_id': None,
+            'ctfd_team_password': None
+        }).eq('team_id', registration_id).execute()
+        
+        # Get all members of this team
+        members_response = supabase.table('team_members').select('id').eq('team_id', registration_id).execute()
+        if members_response.data:
+            # Clear credentials for each member
+            for member in members_response.data:
+                supabase.table('ctfd_user_credentials').update({
+                    'ctfd_user_id': None,
+                    'ctfd_password': None
+                }).eq('member_id', member['id']).execute()
+        
+        logger.info(f'Cleared CTFd credentials for team {registration_id} and its members')
+    except Exception as e:
+        logger.error(f'Error clearing CTFd credentials for team {registration_id}: {str(e)}')
+        raise
 
 
 def convert_datetime_to_iso_with_timezone(datetime_str, timezone_str):
@@ -1861,6 +1910,149 @@ def teams_list():
                           status_counts=status_counts)
 
 
+@settings_bp.route('/settings/teams/export-csv')
+@login_required
+def export_teams_csv():
+    """Export teams and participants data as CSV.
+    
+    CSV format (one member per line):
+    Position, Team ID, Team Name, Total Members, Captain Name, 
+    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone
+    
+    Query parameters:
+    - status: Filter by team status (optional)
+    """
+    supabase = get_supabase_client()
+    
+    if not supabase:
+        flash('Database not configured', 'error')
+        return redirect(url_for('settings.teams_list'))
+    
+    try:
+        # Get status filter from query params
+        status_filter = request.args.get('status', '', type=str).strip()
+        
+        # Build query for teams
+        query = supabase.table('teams').select('*')
+        
+        # Apply status filter if provided
+        if status_filter:
+            query = query.eq('status', status_filter)
+        
+        # Order by team_name for consistent ordering
+        query = query.order('team_name')
+        
+        # Get all teams
+        teams_response = query.execute()
+        teams = teams_response.data if teams_response.data else []
+        
+        # Sort teams: those with finalist_position first (sorted by position), then others
+        teams_with_position = [t for t in teams if t.get('finalist_position') is not None]
+        teams_without_position = [t for t in teams if t.get('finalist_position') is None]
+        
+        # Sort teams with position by their finalist_position
+        teams_with_position.sort(key=lambda t: t.get('finalist_position'))
+        
+        # Combine: finalist teams first, then others
+        sorted_teams = teams_with_position + teams_without_position
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            'Position',
+            'Team ID',
+            'Team Name',
+            'Total Members',
+            'Captain Name',
+            'Member Name',
+            'Member Class',
+            'Member Institution',
+            'Member Email',
+            'Member Phone'
+        ])
+        
+        # Track position for teams without finalist_position
+        # Start from max finalist_position + 1, or 1 if no finalist teams
+        max_finalist_position = max([t.get('finalist_position') for t in teams_with_position], default=0)
+        next_sequential_position = max_finalist_position + 1
+        
+        # Process each team
+        for team in sorted_teams:
+            registration_id = team.get('registration_id')
+            team_name = team.get('team_name', '')
+            captain_name = team.get('captain_name', '')
+            finalist_position = team.get('finalist_position')
+            
+            # Use finalist_position if available, otherwise use sequential number
+            if finalist_position:
+                position = finalist_position
+            else:
+                position = next_sequential_position
+                next_sequential_position += 1
+            
+            # Get team members
+            if registration_id:
+                members_response = supabase.table('team_members').select('*').eq('team_id', registration_id).order('id').execute()
+                members = members_response.data if members_response.data else []
+            else:
+                members = []
+            
+            total_members = len(members)
+            
+            # If team has no members, write one line with team info only
+            if not members:
+                writer.writerow([
+                    position,
+                    registration_id or '',
+                    team_name,
+                    total_members,
+                    captain_name,
+                    '',  # Member Name
+                    '',  # Member Class
+                    '',  # Member Institution
+                    '',  # Member Email
+                    ''   # Member Phone
+                ])
+            else:
+                # Write one line per member
+                for member in members:
+                    writer.writerow([
+                        position,
+                        registration_id or '',
+                        team_name,
+                        total_members,
+                        captain_name,
+                        member.get('name', ''),
+                        member.get('class', ''),
+                        member.get('institution', ''),
+                        member.get('email', ''),
+                        member.get('phone', '')
+                    ])
+        
+        # Prepare response
+        output.seek(0)
+        
+        # Generate filename with status filter if provided
+        filename = f'teams_export'
+        if status_filter:
+            filename += f'_{status_filter}'
+        filename += f'_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+        
+        return Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+        
+    except Exception as e:
+        logger.error(f'Error exporting teams CSV: {str(e)}')
+        flash(f'Error exporting teams: {str(e)}', 'error')
+        return redirect(url_for('settings.teams_list'))
+
+
 @settings_bp.route('/settings/teams/<int:team_id>')
 @login_required
 def team_detail(team_id):
@@ -2024,10 +2216,12 @@ def update_team_status(team_id):
         if status not in valid_statuses:
             return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
         
-        # Check if the team exists
-        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        # Check if the team exists and get registration_id
+        existing = supabase.table('teams').select('id, registration_id').eq('id', team_id).execute()
         if not existing.data:
             return jsonify({'error': 'Team not found'}), 404
+        
+        registration_id = existing.data[0].get('registration_id')
         
         # Prepare update data
         update_data = {'status': status}
@@ -2040,6 +2234,10 @@ def update_team_status(team_id):
             if not is_valid:
                 return jsonify({'error': error_msg}), 400
             update_data.update(validated_fields)
+            
+            # Clear CTFd credentials to generate fresh ones
+            if registration_id:
+                clear_ctfd_credentials_for_team(supabase, registration_id)
         else:
             # If changing from finalist to another status, clear finalist fields
             update_data['is_finalist'] = False
@@ -2085,6 +2283,14 @@ def bulk_update_team_status():
         failed_ids = []
         for team_id in team_ids:
             try:
+                # Get team's registration_id first
+                team_response = supabase.table('teams').select('registration_id').eq('id', team_id).execute()
+                if not team_response.data:
+                    failed_ids.append(team_id)
+                    continue
+                
+                registration_id = team_response.data[0].get('registration_id')
+                
                 # Prepare update data based on status
                 update_data = {'status': status}
                 
@@ -2092,6 +2298,10 @@ def bulk_update_team_status():
                 if status == 'finalist':
                     update_data['is_finalist'] = True
                     # Note: bulk update doesn't set position/round/score - those should be set individually
+                    
+                    # Clear CTFd credentials to generate fresh ones
+                    if registration_id:
+                        clear_ctfd_credentials_for_team(supabase, registration_id)
                 else:
                     # If changing from finalist to another status, clear finalist fields
                     update_data['is_finalist'] = False
@@ -2183,10 +2393,12 @@ def update_team(team_id):
     try:
         data = request.json
         
-        # Check if team exists
-        existing = supabase.table('teams').select('id').eq('id', team_id).execute()
+        # Check if team exists and get registration_id
+        existing = supabase.table('teams').select('id, registration_id').eq('id', team_id).execute()
         if not existing.data:
             return jsonify({'error': 'Team not found'}), 404
+        
+        registration_id = existing.data[0].get('registration_id')
         
         # Fields that can be updated
         allowed_fields = [
@@ -2221,6 +2433,10 @@ def update_team(team_id):
                     return jsonify({'error': error_msg}), 400
                 # Merge validated fields (this replaces the original values with validated ones)
                 update_data.update(validated_fields)
+                
+                # Clear CTFd credentials to generate fresh ones
+                if registration_id:
+                    clear_ctfd_credentials_for_team(supabase, registration_id)
             else:
                 # If changing from finalist to another status, clear finalist fields
                 update_data['is_finalist'] = False
