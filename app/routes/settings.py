@@ -1917,7 +1917,7 @@ def export_teams_csv():
     
     CSV format (one member per line):
     Position, Team ID, Team Name, Total Members, Captain Name, 
-    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone
+    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone, T-Shirt Size
     
     Query parameters:
     - status: Filter by team status (optional)
