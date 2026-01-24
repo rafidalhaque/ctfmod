@@ -1917,7 +1917,7 @@ def export_teams_csv():
     
     CSV format (one member per line):
     Position, Team ID, Team Name, Total Members, Captain Name, 
-    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone
+    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone, T-Shirt Size
     
     Query parameters:
     - status: Filter by team status (optional)
@@ -1971,7 +1971,8 @@ def export_teams_csv():
             'Member Class',
             'Member Institution',
             'Member Email',
-            'Member Phone'
+            'Member Phone',
+            'T-Shirt Size'
         ])
         
         # Track position for teams without finalist_position
@@ -2014,7 +2015,8 @@ def export_teams_csv():
                     '',  # Member Class
                     '',  # Member Institution
                     '',  # Member Email
-                    ''   # Member Phone
+                    '',  # Member Phone
+                    ''   # T-Shirt Size
                 ])
             else:
                 # Write one line per member
@@ -2029,7 +2031,8 @@ def export_teams_csv():
                         member.get('class', ''),
                         member.get('institution', ''),
                         member.get('email', ''),
-                        member.get('phone', '')
+                        member.get('phone', ''),
+                        member.get('t_shirt_size', '')
                     ])
         
         # Prepare response
@@ -2488,7 +2491,7 @@ def update_participant(participant_id):
         # Fields that can be updated (phone is the database column name)
         allowed_fields = [
             'name', 'full_name', 'email', 'phone', 'institution',
-            'class', 'gender'
+            'class', 'gender', 't_shirt_size'
         ]
         
         update_data = {}
