@@ -10,6 +10,24 @@ import io
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
+def build_row_data_helper(position, registration_id, team_name, total_members, captain_name, member_data, selected_columns):
+    """Helper function to build row data for CSV export."""
+    row_data = {
+        'position': position,
+        'team_id': registration_id or '',
+        'team_name': team_name,
+        'total_members': total_members,
+        'captain_name': captain_name,
+        'member_name': member_data.get('name', '') if member_data else '',
+        'member_class': member_data.get('class', '') if member_data else '',
+        'member_institution': member_data.get('institution', '') if member_data else '',
+        'member_email': member_data.get('email', '') if member_data else '',
+        'member_phone': member_data.get('phone', '') if member_data else '',
+        't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
+    }
+    return [row_data[col] for col in selected_columns if col in row_data]
+
+
 def test_csv_export_selected_columns():
     """Test the CSV export logic with column selection."""
     print("Testing CSV export with column selection...")
@@ -87,27 +105,11 @@ def test_csv_export_selected_columns():
         members = team.get('members', [])
         total_members = len(members)
         
-        def build_row_data(member_data=None):
-            row_data = {
-                'position': position,
-                'team_id': registration_id or '',
-                'team_name': team_name,
-                'total_members': total_members,
-                'captain_name': captain_name,
-                'member_name': member_data.get('name', '') if member_data else '',
-                'member_class': member_data.get('class', '') if member_data else '',
-                'member_institution': member_data.get('institution', '') if member_data else '',
-                'member_email': member_data.get('email', '') if member_data else '',
-                'member_phone': member_data.get('phone', '') if member_data else '',
-                't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
-            }
-            return [row_data[col] for col in selected_columns if col in row_data]
-        
         if not members:
-            writer.writerow(build_row_data())
+            writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, None, selected_columns))
         else:
             for member in members:
-                writer.writerow(build_row_data(member))
+                writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, member, selected_columns))
     
     # Verify output
     output.seek(0)
@@ -153,27 +155,11 @@ def test_csv_export_selected_columns():
         members = team.get('members', [])
         total_members = len(members)
         
-        def build_row_data(member_data=None):
-            row_data = {
-                'position': position,
-                'team_id': registration_id or '',
-                'team_name': team_name,
-                'total_members': total_members,
-                'captain_name': captain_name,
-                'member_name': member_data.get('name', '') if member_data else '',
-                'member_class': member_data.get('class', '') if member_data else '',
-                'member_institution': member_data.get('institution', '') if member_data else '',
-                'member_email': member_data.get('email', '') if member_data else '',
-                'member_phone': member_data.get('phone', '') if member_data else '',
-                't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
-            }
-            return [row_data[col] for col in selected_columns if col in row_data]
-        
         if not members:
-            writer.writerow(build_row_data())
+            writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, None, selected_columns))
         else:
             for member in members:
-                writer.writerow(build_row_data(member))
+                writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, member, selected_columns))
     
     output.seek(0)
     reader = csv.reader(output)
@@ -216,27 +202,11 @@ def test_csv_export_selected_columns():
         members = team.get('members', [])
         total_members = len(members)
         
-        def build_row_data(member_data=None):
-            row_data = {
-                'position': position,
-                'team_id': registration_id or '',
-                'team_name': team_name,
-                'total_members': total_members,
-                'captain_name': captain_name,
-                'member_name': member_data.get('name', '') if member_data else '',
-                'member_class': member_data.get('class', '') if member_data else '',
-                'member_institution': member_data.get('institution', '') if member_data else '',
-                'member_email': member_data.get('email', '') if member_data else '',
-                'member_phone': member_data.get('phone', '') if member_data else '',
-                't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
-            }
-            return [row_data[col] for col in selected_columns if col in row_data]
-        
         if not members:
-            writer.writerow(build_row_data())
+            writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, None, selected_columns))
         else:
             for member in members:
-                writer.writerow(build_row_data(member))
+                writer.writerow(build_row_data_helper(position, registration_id, team_name, total_members, captain_name, member, selected_columns))
     
     output.seek(0)
     reader = csv.reader(output)
