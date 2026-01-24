@@ -1921,6 +1921,7 @@ def export_teams_csv():
     
     Query parameters:
     - status: Filter by team status (optional)
+    - columns: Selected columns to export (optional, repeatable)
     """
     supabase = get_supabase_client()
     
@@ -1931,6 +1932,28 @@ def export_teams_csv():
     try:
         # Get status filter from query params
         status_filter = request.args.get('status', '', type=str).strip()
+        
+        # Get selected columns from query params (can be multiple)
+        selected_columns = request.args.getlist('columns')
+        
+        # Define column mappings (internal key -> display name)
+        column_map = {
+            'position': 'Position',
+            'team_id': 'Team ID',
+            'team_name': 'Team Name',
+            'total_members': 'Total Members',
+            'captain_name': 'Captain Name',
+            'member_name': 'Member Name',
+            'member_class': 'Member Class',
+            'member_institution': 'Member Institution',
+            'member_email': 'Member Email',
+            'member_phone': 'Member Phone',
+            't_shirt_size': 'T-Shirt Size'
+        }
+        
+        # If no columns selected, use all columns
+        if not selected_columns:
+            selected_columns = list(column_map.keys())
         
         # Build query for teams
         query = supabase.table('teams').select('*')
@@ -1960,20 +1983,9 @@ def export_teams_csv():
         output = io.StringIO()
         writer = csv.writer(output)
         
-        # Write header
-        writer.writerow([
-            'Position',
-            'Team ID',
-            'Team Name',
-            'Total Members',
-            'Captain Name',
-            'Member Name',
-            'Member Class',
-            'Member Institution',
-            'Member Email',
-            'Member Phone',
-            'T-Shirt Size'
-        ])
+        # Write header with selected columns only
+        header = [column_map[col] for col in selected_columns if col in column_map]
+        writer.writerow(header)
         
         # Track position for teams without finalist_position
         # Start from max finalist_position + 1, or 1 if no finalist teams
@@ -2003,37 +2015,31 @@ def export_teams_csv():
             
             total_members = len(members)
             
+            # Build row data dictionary
+            def build_row_data(member_data=None):
+                row_data = {
+                    'position': position,
+                    'team_id': registration_id or '',
+                    'team_name': team_name,
+                    'total_members': total_members,
+                    'captain_name': captain_name,
+                    'member_name': member_data.get('name', '') if member_data else '',
+                    'member_class': member_data.get('class', '') if member_data else '',
+                    'member_institution': member_data.get('institution', '') if member_data else '',
+                    'member_email': member_data.get('email', '') if member_data else '',
+                    'member_phone': member_data.get('phone', '') if member_data else '',
+                    't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
+                }
+                # Return only selected columns in the correct order
+                return [row_data[col] for col in selected_columns if col in row_data]
+            
             # If team has no members, write one line with team info only
             if not members:
-                writer.writerow([
-                    position,
-                    registration_id or '',
-                    team_name,
-                    total_members,
-                    captain_name,
-                    '',  # Member Name
-                    '',  # Member Class
-                    '',  # Member Institution
-                    '',  # Member Email
-                    '',  # Member Phone
-                    ''   # T-Shirt Size
-                ])
+                writer.writerow(build_row_data())
             else:
                 # Write one line per member
                 for member in members:
-                    writer.writerow([
-                        position,
-                        registration_id or '',
-                        team_name,
-                        total_members,
-                        captain_name,
-                        member.get('name', ''),
-                        member.get('class', ''),
-                        member.get('institution', ''),
-                        member.get('email', ''),
-                        member.get('phone', ''),
-                        member.get('t_shirt_size', '')
-                    ])
+                    writer.writerow(build_row_data(member))
         
         # Prepare response
         output.seek(0)
