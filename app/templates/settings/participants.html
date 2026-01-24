@@ -116,6 +116,10 @@
                                 <div>{{ participant.phone_number or participant.phone or '-' }}</div>
                             </div>
                             <div>
+                                <span class="text-base-content/50">T-Shirt Size:</span>
+                                <div>{{ participant.t_shirt_size or '-' }}</div>
+                            </div>
+                            <div>
                                 <span class="text-base-content/50">Institution:</span>
                                 <div class="truncate">{{ participant.institution or '-' }}</div>
                             </div>
@@ -153,6 +157,7 @@
                             <th>Class</th>
                             <th>Phone</th>
                             <th>Gender</th>
+                            <th>T-Shirt Size</th>
                             <th>Institution</th>
                             <th>CTFd ID</th>
                             <th>CTFd Password</th>
@@ -197,6 +202,9 @@
                                 <span class="text-sm">{{ participant.gender or '-' }}</span>
                             </td>
                             <td>
+                                <span class="text-sm">{{ participant.t_shirt_size or '-' }}</span>
+                            </td>
+                            <td>
                                 <span class="text-sm">{{ participant.institution or '-' }}</span>
                             </td>
                             <td>
@@ -238,7 +246,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="10" class="text-center text-base-content/50 py-8">
+                            <td colspan="11" class="text-center text-base-content/50 py-8">
                                 No participants found.
                             </td>
                         </tr>
@@ -352,6 +360,20 @@
                         <option value="Other">Other</option>
                     </select>
                 </div>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">T-Shirt Size</span>
+                    </label>
+                    <select id="editParticipantTShirtSize" class="select select-bordered">
+                        <option value="">Not specified</option>
+                        <option value="S">S</option>
+                        <option value="M">M</option>
+                        <option value="L">L</option>
+                        <option value="XL">XL</option>
+                        <option value="XXL">XXL</option>
+                        <option value="XXXL">XXXL</option>
+                    </select>
+                </div>
             </div>
             <div class="modal-action">
                 <button type="button" onclick="closeEditParticipantModal()" class="btn">Cancel</button>
@@ -426,6 +448,7 @@ async function openEditParticipantModal(participantId) {
             document.getElementById('editParticipantInstitution').value = participant.institution || '';
             document.getElementById('editParticipantClass').value = participant.class || '';
             document.getElementById('editParticipantGender').value = participant.gender || '';
+            document.getElementById('editParticipantTShirtSize').value = participant.t_shirt_size || '';
             modal.showModal();
         } else {
             showToast('Error: ' + (result.error || 'Failed to load participant data'), 'error');
@@ -456,7 +479,8 @@ document.getElementById('editParticipantForm').addEventListener('submit', async 
         phone: document.getElementById('editParticipantPhone').value,
         institution: document.getElementById('editParticipantInstitution').value,
         class: document.getElementById('editParticipantClass').value,
-        gender: document.getElementById('editParticipantGender').value
+        gender: document.getElementById('editParticipantGender').value,
+        t_shirt_size: document.getElementById('editParticipantTShirtSize').value
     };
     
     try {

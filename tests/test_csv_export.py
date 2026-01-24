@@ -22,8 +22,8 @@ def test_csv_export_logic():
             'captain_name': 'Alice Smith',
             'finalist_position': 1,
             'members': [
-                {'name': 'Alice Smith', 'class': '10', 'institution': 'School A', 'email': 'alice@example.com', 'phone': '1234567890'},
-                {'name': 'Bob Jones', 'class': '11', 'institution': 'School A', 'email': 'bob@example.com', 'phone': '1234567891'},
+                {'name': 'Alice Smith', 'class': '10', 'institution': 'School A', 'email': 'alice@example.com', 'phone': '1234567890', 't_shirt_size': 'M'},
+                {'name': 'Bob Jones', 'class': '11', 'institution': 'School A', 'email': 'bob@example.com', 'phone': '1234567891', 't_shirt_size': 'L'},
             ]
         },
         {
@@ -32,7 +32,7 @@ def test_csv_export_logic():
             'captain_name': 'Charlie Brown',
             'finalist_position': None,  # No finalist position
             'members': [
-                {'name': 'Charlie Brown', 'class': '12', 'institution': 'School B', 'email': 'charlie@example.com', 'phone': '1234567892'},
+                {'name': 'Charlie Brown', 'class': '12', 'institution': 'School B', 'email': 'charlie@example.com', 'phone': '1234567892', 't_shirt_size': 'XL'},
             ]
         },
         {
@@ -69,7 +69,8 @@ def test_csv_export_logic():
         'Member Class',
         'Member Institution',
         'Member Email',
-        'Member Phone'
+        'Member Phone',
+        'T-Shirt Size'
     ])
     
     # Track position for teams without finalist_position
@@ -106,7 +107,8 @@ def test_csv_export_logic():
                 '',  # Member Class
                 '',  # Member Institution
                 '',  # Member Email
-                ''   # Member Phone
+                '',  # Member Phone
+                ''   # T-Shirt Size
             ])
         else:
             # Write one line per member
@@ -121,7 +123,8 @@ def test_csv_export_logic():
                     member.get('class', ''),
                     member.get('institution', ''),
                     member.get('email', ''),
-                    member.get('phone', '')
+                    member.get('phone', ''),
+                    member.get('t_shirt_size', '')
                 ])
     
     # Verify CSV content
@@ -131,7 +134,7 @@ def test_csv_export_logic():
     
     # Check header
     assert rows[0] == ['Position', 'Team ID', 'Team Name', 'Total Members', 'Captain Name', 
-                       'Member Name', 'Member Class', 'Member Institution', 'Member Email', 'Member Phone'], \
+                       'Member Name', 'Member Class', 'Member Institution', 'Member Email', 'Member Phone', 'T-Shirt Size'], \
         "Header row is incorrect"
     print("✓ Header row is correct")
     
