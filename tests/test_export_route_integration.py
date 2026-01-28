@@ -18,7 +18,7 @@ def test_export_route_simulation():
         {
             'name': 'All columns (default when none selected)',
             'selected_columns': [],
-            'expected_count': 11
+            'expected_count': 13  # Updated from 11 to include 2 new CTFd columns
         },
         {
             'name': 'Basic team info only',
@@ -34,6 +34,11 @@ def test_export_route_simulation():
             'name': 'Single column',
             'selected_columns': ['team_name'],
             'expected_count': 1
+        },
+        {
+            'name': 'With CTFd credentials',
+            'selected_columns': ['team_name', 'member_name', 'ctfd_user_id', 'ctfd_user_password'],
+            'expected_count': 4
         }
     ]
     
@@ -49,7 +54,9 @@ def test_export_route_simulation():
         'member_institution': 'Member Institution',
         'member_email': 'Member Email',
         'member_phone': 'Member Phone',
-        't_shirt_size': 'T-Shirt Size'
+        't_shirt_size': 'T-Shirt Size',
+        'ctfd_user_id': 'CTFd User ID',
+        'ctfd_user_password': 'CTFd User Password'
     }
     
     for test_case in test_cases:
