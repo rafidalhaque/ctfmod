@@ -1917,11 +1917,14 @@ def export_teams_csv():
     
     CSV format (one member per line):
     Position, Team ID, Team Name, Total Members, Captain Name, 
-    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone, T-Shirt Size
+    Member's Name, Member's Class, Member's Institution, Member's Email, Member's Phone, T-Shirt Size,
+    CTFd User ID, CTFd User Password
     
     Query parameters:
     - status: Filter by team status (optional)
     - columns: Selected columns to export (optional, repeatable)
+    
+    Note: The CSV may contain sensitive information (CTFd passwords). Handle the exported file securely.
     """
     supabase = get_supabase_client()
     
@@ -1956,6 +1959,9 @@ def export_teams_csv():
         # If no columns selected, use all columns
         if not selected_columns:
             selected_columns = list(column_map.keys())
+        
+        # Check if CTFd credentials are needed for export
+        need_ctfd_credentials = 'ctfd_user_id' in selected_columns or 'ctfd_user_password' in selected_columns
         
         # Build query for teams
         query = supabase.table('teams').select('*')
@@ -2017,9 +2023,9 @@ def export_teams_csv():
             
             total_members = len(members)
             
-            # Fetch CTFd user credentials for all members in this team
+            # Fetch CTFd user credentials for all members in this team (only if needed)
             user_credentials = {}
-            if members:
+            if need_ctfd_credentials and members:
                 member_ids = [m['id'] for m in members]
                 user_creds_response = supabase.table('ctfd_user_credentials').select('*').in_('member_id', member_ids).execute()
                 if user_creds_response.data:
