@@ -1948,7 +1948,9 @@ def export_teams_csv():
             'member_institution': 'Member Institution',
             'member_email': 'Member Email',
             'member_phone': 'Member Phone',
-            't_shirt_size': 'T-Shirt Size'
+            't_shirt_size': 'T-Shirt Size',
+            'ctfd_user_id': 'CTFd User ID',
+            'ctfd_user_password': 'CTFd User Password'
         }
         
         # If no columns selected, use all columns
@@ -2015,8 +2017,20 @@ def export_teams_csv():
             
             total_members = len(members)
             
+            # Fetch CTFd user credentials for all members in this team
+            user_credentials = {}
+            if members:
+                member_ids = [m['id'] for m in members]
+                user_creds_response = supabase.table('ctfd_user_credentials').select('*').in_('member_id', member_ids).execute()
+                if user_creds_response.data:
+                    # Create a dictionary keyed by member_id for quick lookup
+                    user_credentials = {cred['member_id']: cred for cred in user_creds_response.data}
+            
             # Build row data dictionary
             def build_row_data(member_data=None):
+                member_id = member_data.get('id') if member_data else None
+                user_cred = user_credentials.get(member_id, {}) if member_id else {}
+                
                 row_data = {
                     'position': position,
                     'team_id': registration_id or '',
@@ -2028,7 +2042,9 @@ def export_teams_csv():
                     'member_institution': member_data.get('institution', '') if member_data else '',
                     'member_email': member_data.get('email', '') if member_data else '',
                     'member_phone': member_data.get('phone', '') if member_data else '',
-                    't_shirt_size': member_data.get('t_shirt_size', '') if member_data else ''
+                    't_shirt_size': member_data.get('t_shirt_size', '') if member_data else '',
+                    'ctfd_user_id': user_cred.get('ctfd_username', ''),
+                    'ctfd_user_password': user_cred.get('ctfd_password', '')
                 }
                 # Return only selected columns in the correct order
                 return [row_data[col] for col in selected_columns if col in row_data]
